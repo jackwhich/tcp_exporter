@@ -1,72 +1,59 @@
 package main
 
 import (
-	"context"
-	"flag"
-	"fmt"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-
-	"go.uber.org/zap"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
+        "os"
+        "runtime/debug"
+        "go.uber.org/zap"
 )
 
+var logger *Logger
+
 func main() {
-	configPath := flag.String("config", "config/config.yaml", "Path to config file")
-	flag.Parse()
+        // 先加载配置
+        cfg, configPath := mustLoadConfig()
 
-	// 初始化日志
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
+        // 初始化logger
+        logger = NewLogger(cfg)
 
-	// 加载配置
-	cfg, err := LoadConfig(*configPath)
-	if err != nil {
-		logger.Fatal("加载配置失败", zap.Error(err))
-	}
+        defer func() {
+                if r := recover(); r != nil {
+                        logger.Error("程序崩溃",
+                                zap.Any("reason", r),
+                                zap.String("stack", string(debug.Stack())))
+                        os.Exit(1)
+                }
+        }()
 
-	// 创建Kubernetes客户端
-	var clientset *kubernetes.Clientset
-	if cfg.Kubernetes.InCluster {
-		config, err := rest.InClusterConfig()
-		if err != nil {
-			logger.Fatal("创建集群内配置失败", zap.Error(err))
-		}
-		clientset, err = kubernetes.NewForConfig(config)
-		if err != nil {
-			logger.Fatal("创建集群内客户端失败", zap.Error(err))
-		}
-		logger.Info("使用集群内Kubernetes客户端")
-	} else {
-		kubeconfig := clientcmd.NewDefaultClientConfigLoadingRules().GetDefaultFilename()
-		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			logger.Fatal("创建集群外配置失败", zap.Error(err))
-		}
-		clientset, err = kubernetes.NewForConfig(config)
-		if err != nil {
-			logger.Fatal("创建集群外客户端失败", zap.Error(err))
-		}
-		logger.Info("使用集群外Kubernetes客户端", zap.String("kubeconfig", kubeconfig))
-	}
+        logger.Info("启动TCP队列指标导出器")
+        logger.Info("配置加载成功",
+                zap.String("path", configPath),
+                zap.String("logLevel", cfg.Server.LogLevel),
+                zap.String("cacheFilePath", cfg.Kubernetes.CacheFilePath))
 
-	// 启动HTTP服务器
-	go func() {
-		http.Handle("/metrics", metricsHandler())
-		addr := fmt.Sprintf(":%d", cfg.Server.Port)
-		logger.Info("启动HTTP服务器", zap.String("addr", addr))
-		if err := http.ListenAndServe(addr, nil); err != nil {
-			logger.Fatal("HTTP服务器启动失败", zap.Error(err))
-		}
-	}()
+        logger.Debug("初始化Kubernetes客户端")
+        clientset, restConfig, factory := initK8sClient(cfg)
+        logger.Info("Kubernetes客户端初始化成功")
 
-	// 等待退出信号
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	<-sigCh
-	logger.Info("收到退出信号，关闭程序")
+        logger.Debug("创建快照管理器")
+        snapshotManager := NewSnapshotManager(
+                factory.Apps().V1().Deployments().Lister(),
+                factory.Core().V1().Pods().Lister(),
+                cfg,
+        )
+        logger.Info("启动快照管理器监听")
+        go snapshotManager.RunWatcher(factory)
+
+        collector := registerCollector(clientset, restConfig, cfg, factory)
+        logger.Info("指标收集器注册成功")
+
+        go watchConfig(configPath, func(newCfg *Config) {
+                logger.Info("配置热重载完成",
+                        zap.String("logLevel", newCfg.Server.LogLevel),
+                        zap.Strings("ignoreContainers", newCfg.Kubernetes.IgnoreContainers))
+                collector.ignoreSet = buildIgnoreSet(newCfg.Kubernetes.IgnoreContainers)
+        })
+
+        logger.Info("启动HTTP服务器",
+                zap.String("address", ":"+cfg.Server.Port))
+        runHTTPServer(cfg)
 }
