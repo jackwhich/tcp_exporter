@@ -290,7 +290,7 @@ func (collector *TCPQueueCollector) collectSingleTask(t podTask, metricChan chan
                         zap.String("namespace", t.namespace),
                         zap.String("container", t.containerName))
         }()
-        streamParseAndReport(pipeReader, collector, metricChan, logger, t.namespace, t.pod.Name, ip, t.containerName)
+        streamParseAndReport(pipeReader, collector, metricChan, t.namespace, t.pod.Name, ip, t.containerName)
         logger.Debug("任务处理完成",
                 zap.String("namespace", t.namespace),
                 zap.String("pod", t.pod.Name),

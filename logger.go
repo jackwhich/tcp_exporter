@@ -1,5 +1,4 @@
-// Package utils 提供通用工具函数和结构，包括日志记录器实现。
-package utils
+package main
 
 import (
         "fmt"
@@ -10,7 +9,7 @@ import (
         "go.uber.org/zap/zapcore"
 )
 
-const CodeInitLoggerFailure = "INIT_LOGGER_FAILURE"
+// const CodeInitLoggerFailure = "INIT_LOGGER_FAILURE"
 
 // Logger 封装日志系统的初始化和配置
 type Logger struct {
@@ -18,14 +17,14 @@ type Logger struct {
 }
 
 // NewLogger 创建并配置一个新的日志记录器
-// cfg: 应用程序配置对象
+// cfg: 应用程序配置，包含日志级别等设置
 var (
         logLevel = zap.NewAtomicLevel()
 )
 
-func NewLogger(logLevelStr string) *Logger {
+func NewLogger(cfg *Config) *Logger {
         // 设置初始日志级别
-        updateLogLevel(logLevelStr)
+        updateLogLevel(cfg.Server.LogLevel)
 
         zapConfig := zap.NewProductionConfig()
         zapConfig.Level = logLevel
