@@ -1,0 +1,57 @@
+  - job_name: 'TCP-QUEUE-METRICS'
+    scheme: http
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    kubernetes_sd_configs:
+      - api_server: https://10.8.64.11:6443
+        role: endpoints
+        bearer_token_file: k8s/token
+        tls_config:
+          insecure_skip_verify: true
+        namespaces:
+          names: ['ebpay-mid']
+    relabel_configs:
+      # 只抓取tcp-exporter服务
+      - source_labels: [__meta_kubernetes_service_name]
+        regex: 'tcp-exporter'
+        action: keep
+      # 只保留运行中的Pod
+      - source_labels: [__meta_kubernetes_pod_phase]
+        regex: 'Running'
+        action: keep
+      # 指定端口9325
+      - source_labels: [__meta_kubernetes_pod_container_port_number]
+        regex: '9325'
+        action: keep
+      # 设置实例标签为Pod名称
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: instance
+      # 重写API服务器地址
+      - target_label: __address__
+        replacement: 10.8.64.11:6443
+      # 构建指标路径（符合示例格式）
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_pod_name, __meta_kubernetes_pod_container_port_number]
+        regex: '([^;]+);([^;]*);(9325)'
+        target_label: __metrics_path__
+        replacement: /api/v1/namespaces/${1}/pods/http:${2}:${3}/proxy/metrics
+      # 映射Kubernetes标签
+      - action: labelmap
+        regex: __meta_kubernetes_service_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: pod
+
+  - job_name: 'PROD_K8S_POD'
+    scrape_interval: 15s
+    scrape_timeout:  10s
+    metrics_path: /metrics
+    relabel_configs:
+    - source_labels: [pod_ip]
+      target_label: instance
+    static_configs:
+        - targets:
+          - 10.8.64.28:30925        
