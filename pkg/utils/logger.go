@@ -1,3 +1,4 @@
+// Package utils 提供通用工具函数和结构，包括日志记录器实现。
 package utils
 
 import (
