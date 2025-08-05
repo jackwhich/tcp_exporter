@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
         "fmt"
@@ -9,7 +9,7 @@ import (
         "go.uber.org/zap/zapcore"
 )
 
-// const CodeInitLoggerFailure = "INIT_LOGGER_FAILURE"
+const CodeInitLoggerFailure = "INIT_LOGGER_FAILURE"
 
 // Logger 封装日志系统的初始化和配置
 type Logger struct {
@@ -17,14 +17,14 @@ type Logger struct {
 }
 
 // NewLogger 创建并配置一个新的日志记录器
-// cfg: 应用程序配置，包含日志级别等设置
+// cfg: 应用程序配置对象
 var (
         logLevel = zap.NewAtomicLevel()
 )
 
-func NewLogger(cfg *Config) *Logger {
+func NewLogger(logLevelStr string) *Logger {
         // 设置初始日志级别
-        updateLogLevel(cfg.Server.LogLevel)
+        updateLogLevel(logLevelStr)
 
         zapConfig := zap.NewProductionConfig()
         zapConfig.Level = logLevel

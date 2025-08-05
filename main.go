@@ -4,16 +4,17 @@ import (
         "os"
         "runtime/debug"
         "go.uber.org/zap"
+        "tcp-exporter/pkg/utils"
 )
 
-var logger *Logger
+var logger *utils.Logger
 
 func main() {
         // 先加载配置
         cfg, configPath := mustLoadConfig()
 
         // 初始化logger
-        logger = NewLogger(cfg)
+        logger = utils.NewLogger(cfg.Server.LogLevel)
 
         defer func() {
                 if r := recover(); r != nil {
