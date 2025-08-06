@@ -42,12 +42,16 @@ func (c *Config) GetLogLevel() string {
 func loadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("读取配置文件失败: %w", err)
+		ctx := context.Background()
+		utils.Log.Error(ctx, "读取配置文件失败", zap.Error(err))
+		os.Exit(1)
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("解析 YAML 失败: %w", err)
+		ctx := context.Background()
+		utils.Log.Error(ctx, "解析 YAML 失败", zap.Error(err))
+		os.Exit(1)
 	}
 
         return &cfg, nil
@@ -59,7 +63,8 @@ func mustLoadConfig() (*Config, string) {
         fmt.Fprintf(os.Stdout, "加载配置文件: %s\n", *configPath)
         cfg, err := loadConfig(*configPath)
         if err != nil {
-                fmt.Fprintf(os.Stderr, "读取配置文件失败 [%s]: %v\n", CodeLoadConfigFailure, err)
+                ctx := context.Background()
+                utils.Log.Error(ctx, "读取配置文件失败", zap.Error(err))
                 os.Exit(1)
         }
         fmt.Fprintf(os.Stdout, "配置文件加载成功: %s\n", *configPath)

@@ -71,8 +71,7 @@ func runHTTPServer(cfg *Config) {
 	err := router.Run(":" + cfg.Server.Port)
 	if err != nil {
 		utils.Log.Fatal(context.Background(), "HTTP服务启动失败",
-			zap.Error(err),
-			zap.String("code", CodeHTTPServerStartFailure))
+			zap.Error(err))
 	} else {
 		utils.Log.Info(context.Background(), "HTTP服务已停止")
 	}
