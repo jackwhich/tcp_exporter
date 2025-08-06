@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime/debug"
 	
+	"tcp-exporter/client"
 	"tcp-exporter/config"
 	"tcp-exporter/utils"
 	"go.uber.org/zap"
@@ -33,7 +34,7 @@ func main() {
 		zap.String("cacheFilePath", cfg.Kubernetes.CacheFilePath))
 
 	utils.Log.Debug(context.Background(), "初始化Kubernetes客户端")
-	clientset, restConfig, factory := initK8sClient(context.Background(), cfg)
+	clientset, restConfig, factory := client.InitK8sClient(context.Background(), cfg)
 	utils.Log.Info(context.Background(), "Kubernetes客户端初始化成功")
 
 	utils.Log.Debug(context.Background(), "创建快照管理器")
