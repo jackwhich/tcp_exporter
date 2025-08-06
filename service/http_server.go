@@ -1,4 +1,6 @@
-package main
+// Package service 提供 HTTP 服务启动与路由设置，
+// 包含日志中间件、trace_id 注入及 /metrics 端点处理
+package service
 
 import (
 	"context"
@@ -12,7 +14,7 @@ import (
 	"tcp-exporter/utils"
 )
 
-func runHTTPServer(cfg *config.Config) {
+func RunHTTPServer(cfg *config.Config) {
 	gin.SetMode(cfg.Server.GinMode)
 	router := gin.New()
 

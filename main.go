@@ -7,6 +7,7 @@ import (
 	
 	"tcp-exporter/client"
 	"tcp-exporter/config"
+	"tcp-exporter/service"
 	"tcp-exporter/utils"
 	"go.uber.org/zap"
 )
@@ -58,5 +59,5 @@ func main() {
 
 	utils.Log.Info(context.Background(), "启动HTTP服务器",
 		zap.String("address", ":"+cfg.Server.Port))
-	runHTTPServer(cfg)
+	service.RunHTTPServer(cfg)
 }
