@@ -1,0 +1,21 @@
+# macOS系统文件
+.DS_Store
+
+# 编辑器/IDE文件
+.vscode/
+.idea/
+
+# 编译输出
+bin/
+dist/
+build/
+
+# 依赖目录
+node_modules/
+
+# 日志文件
+*.log
+
+# 环境文件
+.env
+.env.local
