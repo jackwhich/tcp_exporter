@@ -173,6 +173,42 @@ type ShardingManager struct {
         Mode ShardingMode
 }
 
+// GetShardRange 计算当前副本的分片范围
+// 参数:
+//   totalItems: 总任务数
+//   replicas: 副本总数
+//   ordinal: 当前Pod序号 (0-indexed)
+// 返回值:
+//   start: 分片起始索引 (包含)
+//   end: 分片结束索引 (不包含)
+func (sm *ShardingManager) GetShardRange(totalItems, replicas, ordinal int) (start, end int) {
+	// 单个副本或没有任务时处理所有任务
+	if replicas <= 1 || totalItems == 0 {
+		return 0, totalItems
+	}
+	
+	// 基本分片大小
+	baseSize := totalItems / replicas
+	// 余数任务（需要分配到前面的分片）
+	remainder := totalItems % replicas
+	
+	// 计算起始位置
+	start = ordinal * baseSize
+	if ordinal < remainder {
+		start += ordinal
+	} else {
+		start += remainder
+	}
+	
+	// 计算结束位置
+	end = start + baseSize
+	if ordinal < remainder {
+		end += 1
+	}
+	
+	return
+}
+
 func (sm *ShardingManager) ShardTasks(ctx context.Context, tasks []podTask, replicas, ordinal int) []podTask {
 	if replicas <= 0 {
 		return tasks

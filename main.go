@@ -40,14 +40,19 @@ func main() {
 	clientset, restConfig, factory := client.InitK8sClient(context.Background(), cfg)
 	utils.Log.Info(context.Background(), "Kubernetes客户端初始化成功")
 
-	utils.Log.Debug(context.Background(), "创建快照管理器")
-	snapshotManager := snapshot.NewSnapshotManager(
-		factory.Apps().V1().Deployments().Lister(),
-		factory.Core().V1().Pods().Lister(),
-		cfg,
+	// 使用高效的领导者选举
+	client.RunLeaderElection(context.Background(), clientset, cfg.Kubernetes.TargetNamespaces[0],
+		func(leaderCtx context.Context) { // 领导者函数
+			utils.Log.Debug(leaderCtx, "创建快照管理器")
+			snapshotManager := snapshot.NewSnapshotManager(
+				factory.Apps().V1().Deployments().Lister(),
+				factory.Core().V1().Pods().Lister(),
+				cfg,
+			)
+			utils.Log.Info(leaderCtx, "启动快照管理器监听")
+			go snapshotManager.RunWatcher(factory)
+		},
 	)
-	utils.Log.Info(context.Background(), "启动快照管理器监听")
-	go snapshotManager.RunWatcher(factory)
 
 	collector := collector.RegisterCollector(clientset, restConfig, cfg, factory)
 	utils.Log.Info(context.Background(), "指标收集器注册成功")

@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tcp-exporter
+spec:
+  serviceName: tcp-exporter
+  replicas: 3
+  selector:
+    matchLabels:
+      app: tcp-exporter
+  volumeClaimTemplates:
+  - metadata:
+      name: snapshot-storage
+    spec:
+      accessModes: [ "ReadWriteMany" ]
+      storageClassName: "nfs"
+      resources:
+        requests:
+          storage: 1Gi
+  template:
+    metadata:
+      labels:
+        app: tcp-exporter
+    spec:
+      serviceAccountName: tcp-exporter
+      containers:
+      - name: exporter
+        image: your-registry/tcp-exporter:latest
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: REPLICA_COUNT
+          value: "3"
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+        - name: snapshot-storage
+          mountPath: /app/snapshots
+      volumes:
+      - name: config-volume
+        configMap:
+          name: tcp-exporter-config

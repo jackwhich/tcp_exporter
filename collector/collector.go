@@ -4,6 +4,7 @@ package collector
 
 import (
 	"context"
+	"hash/fnv"
 	"io"
 	"os"
 	"sort"
@@ -28,6 +29,28 @@ import (
 	"tcp-exporter/utils"
 	"tcp-exporter/cmd"
 )
+
+// getOrdinalFromPodName 从Pod名称提取序号
+func getOrdinalFromPodName(podName string) int {
+	// 处理空名称
+	if podName == "" {
+		return 0
+	}
+	
+	// 分割名称获取最后部分
+	parts := strings.Split(podName, "-")
+	lastPart := parts[len(parts)-1]
+	
+	// 尝试转换为整数
+	ordinal, err := strconv.Atoi(lastPart)
+	if err != nil {
+		// 如果转换失败，使用哈希值作为回退
+		h := fnv.New32a()
+		h.Write([]byte(podName))
+		return int(h.Sum32() % 1000)
+	}
+	return ordinal
+}
 
 
 
@@ -61,6 +84,10 @@ type TCPQueueCollector struct {
         descListenDrops      *prometheus.Desc
         descMaxSomaxconn     *prometheus.Desc
         descCurrentEstablished *prometheus.Desc
+        
+        // 轻量级缓存
+        lastCheck    time.Time      // 最后检查时间
+        lastSnapshot *snapshot.Snapshot // 上次快照
 }
 
 func TCPQueueCollectorFactory(
@@ -334,12 +361,43 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 	taskCtx := context.WithValue(context.Background(), utils.TraceIDKey, "collector-"+uuid.NewString())
 	
 	utils.Log.Info(taskCtx, "开始收集 TCP 队列指标")
-	snap, err := snapshot.LoadSnapshot(taskCtx, collector.cacheFilePath)
+	
+	// 获取副本信息
+	replicas, _ := strconv.Atoi(os.Getenv("REPLICA_COUNT"))
+	podName := os.Getenv("POD_NAME")
+	ordinal := getOrdinalFromPodName(podName)
+	
+	utils.Log.Info(taskCtx, "当前Pod分片信息",
+		zap.String("podName", podName),
+		zap.Int("ordinal", ordinal),
+		zap.Int("replicas", replicas))
+	
+	// 轻量级缓存检查
+	var snap *snapshot.Snapshot
+	fi, err := os.Stat(collector.cacheFilePath)
 	if err != nil {
-		utils.Log.Error(taskCtx, "加载快照失败，跳过本次采集",
+		utils.Log.Error(taskCtx, "无法访问快照文件",
 			zap.String("cacheFilePath", collector.cacheFilePath),
 			zap.Error(err))
 		return
+	}
+	
+	// 检查文件是否修改
+	if fi.ModTime().After(collector.lastCheck) {
+		utils.Log.Debug(taskCtx, "快照文件已更新，重新加载")
+		snap, err = snapshot.LoadSnapshot(taskCtx, collector.cacheFilePath)
+		if err != nil {
+			utils.Log.Error(taskCtx, "加载快照失败，跳过本次采集",
+				zap.String("cacheFilePath", collector.cacheFilePath),
+				zap.Error(err))
+			return
+		}
+		// 更新缓存
+		collector.lastCheck = fi.ModTime()
+		collector.lastSnapshot = snap
+	} else {
+		utils.Log.Debug(taskCtx, "复用缓存快照")
+		snap = collector.lastSnapshot
 	}
 	namespaces := make([]string, 0, len(snap.Namespaces))
 	for ns := range snap.Namespaces {
@@ -348,13 +406,7 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 	utils.Log.Info(taskCtx, "成功加载快照",
 		zap.String("cacheFilePath", collector.cacheFilePath),
 		zap.String("namespaces", strings.Join(namespaces, ", ")))
-	replicas, _ := strconv.Atoi(os.Getenv("REPLICA_COUNT"))
-	podName := os.Getenv("POD_NAME")
-	parts := strings.Split(podName, "-")
-	ordinal := 0
-	if idx, err := strconv.Atoi(parts[len(parts)-1]); err == nil {
-		ordinal = idx
-	}
+	
 	totalPods := 0
 	for _, nsData := range snap.Namespaces {
 		for _, pods := range nsData.Deployments {
@@ -365,8 +417,27 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 	sm := &ShardingManager{Mode: ShardByDeployment}
 
 	tasks := collector.buildTasks(taskCtx, snap)
-	tasks = sm.ShardTasks(taskCtx, tasks, replicas, ordinal)
-	collector.collectTasks(taskCtx, tasks, metricChan, cm)
+	totalTasks := len(tasks)
+	
+	// 计算分片范围
+	start, end := sm.GetShardRange(totalTasks, replicas, ordinal)
+	if end > totalTasks {
+		end = totalTasks
+	}
+	if start > totalTasks {
+		start = totalTasks
+	}
+	shardedTasks := tasks[start:end]
+	
+	utils.Log.Info(taskCtx, "任务分片范围",
+		zap.Int("start", start),
+		zap.Int("end", end),
+		zap.Int("分片任务数", len(shardedTasks)),
+		zap.Int("总任务数", totalTasks),
+		zap.Int("副本数", replicas),
+		zap.Int("当前副本序号", ordinal))
+	
+	collector.collectTasks(taskCtx, shardedTasks, metricChan, cm)
 }
 
 func RegisterCollector(clientset *kubernetes.Clientset, restConfig *rest.Config, cfg *config.Config, factory informers.SharedInformerFactory) *TCPQueueCollector {
