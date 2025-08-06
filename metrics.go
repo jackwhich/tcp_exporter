@@ -5,15 +5,10 @@ import (
         "bytes"
         "io"
         "strconv"
-        "sync"
 
         "github.com/prometheus/client_golang/prometheus"
         "go.uber.org/zap"
 )
-
-var bufPool = sync.Pool{
-        New: func() any { return new(bytes.Buffer) },
-}
 
 // 定义指标键常量
 const (
@@ -23,6 +18,7 @@ const (
         KeySomaxconn         = "somaxconn"         // 最大监听队列长度
         KeyCurrEstab         = "CurrEstab"         // 当前已建立连接数
         KeyTCPExt            = "TcpExt:"           // TCP扩展指标前缀
+        KeyTCPExtData        = "TcpExt"            // TCP扩展数据行前缀
         KeyTCP               = "Tcp:"              // TCP基础指标前缀
 )
 
@@ -36,14 +32,12 @@ type parseState struct {
         listenDrops       float64    // 监听队列丢弃值
         currentEstablished float64    // 当前已建立连接数值
         logger            *Logger    // 日志记录器
-        debugEnabled      bool       // 是否启用调试日志
 }
 
 // 创建解析状态
 func newParseState(logger *Logger) *parseState {
         return &parseState{
                 logger: logger,
-                debugEnabled: logger.Core().Enabled(zap.DebugLevel),
         }
 }
 
@@ -54,8 +48,8 @@ func newParseState(logger *Logger) *parseState {
 func parseMetricValue(valueStr string, logger *Logger) float64 {
         value, err := strconv.ParseFloat(valueStr, 64)
         if err != nil {
-                logger.Debug("解析指标值失败", 
-                        zap.String("value", valueStr), 
+                logger.Debug("解析指标值失败",
+                        zap.String("value", valueStr),
                         zap.Error(err))
                 return 0
         }
@@ -66,29 +60,64 @@ func parseMetricValue(valueStr string, logger *Logger) float64 {
 // 行处理器类型
 type lineHandler func([]byte, *parseState)
 
-// 行处理器映射表
-var lineHandlers = map[string]lineHandler{
-        KeyTCPExt:    handleTCPExtLine,    // 处理TCP扩展指标行
-        "somaxconn:": handleSomaxconnLine, // 处理somaxconn行
-        KeyTCP:       handleTCPLine,       // 处理TCP基础指标行
+// 行处理器列表
+var lineHandlers = []struct {
+        prefix  string
+        handler lineHandler
+}{
+        {prefix: KeyTCPExt,       handler: handleTCPExtLine},
+        {prefix: "somaxconn:",    handler: handleSomaxconnLine},
+        {prefix: KeyTCP,          handler: handleTCPLine},
 }
 
-// 简化日志和代码结构
+// 处理TCP扩展行（自动区分表头与数据）
 func handleTCPExtLine(lineBytes []byte, state *parseState) {
         fields := bytes.Fields(lineBytes)
-        if len(fields) > 1 {
+        if len(fields) < 2 {
+                return
+        }
+        // 如果第二个字段是非数字，则为表头行
+        if !isNumericField(fields[1]) {
                 keys := make([]string, len(fields)-1)
                 for i, f := range fields[1:] {
                         keys[i] = string(f)
                 }
                 state.tcpExtKeys = keys
-                if state.debugEnabled {
-                        state.logger.Debug("解析TCP扩展指标头", zap.ByteString("line", lineBytes))
+                state.logger.Debug("解析TCP扩展指标头",
+                        zap.Strings("keys", keys),
+                        zap.ByteString("line", lineBytes))
+                return
+        }
+        // 否则为数据行
+        if state.tcpExtKeys == nil {
+                state.logger.Debug("跳过TCP扩展数据行，缺少表头")
+                return
+        }
+        if len(fields)-1 < len(state.tcpExtKeys) {
+                state.logger.Debug("TCP扩展数据行格式错误",
+                        zap.ByteString("line", lineBytes),
+                        zap.Int("fields", len(fields)),
+                        zap.Int("keys", len(state.tcpExtKeys)))
+                return
+        }
+        for i, key := range state.tcpExtKeys {
+                value := parseMetricValue(string(fields[i+1]), state.logger)
+                switch key {
+                case KeySyncookiesSent:
+                        state.syncookiesSent = value
+                case KeyListenOverflows:
+                        state.listenOverflows = value
+                case KeyListenDrops:
+                        state.listenDrops = value
                 }
         }
+        state.logger.Info("处理TCP扩展数据行",
+                zap.Float64("SyncookiesSent", state.syncookiesSent),
+                zap.Float64("ListenOverflows", state.listenOverflows),
+                zap.Float64("ListenDrops", state.listenDrops))
 }
 
-// 简化日志和代码结构
+// 处理somaxconn行
 func handleSomaxconnLine(lineBytes []byte, state *parseState) {
         parts := bytes.SplitN(lineBytes, []byte(":"), 2)
         if len(parts) < 2 {
@@ -100,9 +129,7 @@ func handleSomaxconnLine(lineBytes []byte, state *parseState) {
         parsedValue := parseMetricValue(valueStr, state.logger)
         state.somaxconnValue = parsedValue
 
-        if state.debugEnabled {
-                state.logger.Debug("解析somaxconn值", zap.Float64("value", parsedValue))
-        }
+        state.logger.Debug("解析somaxconn值", zap.Float64("value", parsedValue))
 }
 
 // 简化TCP行处理
@@ -136,10 +163,8 @@ func handleTCPHeaderLine(fields [][]byte, state *parseState) {
         }
         state.snmpHeaders = headers
 
-        if state.debugEnabled {
-                state.logger.Debug("设置TCP SNMP表头", 
-                        zap.Strings("headers", headers))
-        }
+        state.logger.Debug("设置TCP SNMP表头",
+                zap.Strings("headers", headers))
 }
 
 // 默认TCP SNMP表头（来自/proc/net/snmp）
@@ -167,19 +192,15 @@ func handleTCPDataLine(fields [][]byte, state *parseState) {
         if headers == nil {
                 // 使用默认表头
                 headers = defaultTCPHeaders
-                if state.debugEnabled {
-                        state.logger.Debug("使用默认TCP表头", 
-                                zap.Strings("headers", headers))
-                }
+                state.logger.Debug("使用默认TCP表头",
+                        zap.Strings("headers", headers))
         }
 
         // 检查数据行字段数是否与表头匹配
         if len(fields)-1 < len(headers) {
-                if state.debugEnabled {
-                        state.logger.Debug("数据行字段数少于表头字段数",
-                                zap.Int("fields", len(fields)-1),
-                                zap.Int("headers", len(headers)))
-                }
+                state.logger.Debug("数据行字段数少于表头字段数",
+                        zap.Int("fields", len(fields)-1),
+                        zap.Int("headers", len(headers)))
                 return
         }
 
@@ -194,12 +215,9 @@ func handleTCPDataLine(fields [][]byte, state *parseState) {
                         rawValue := string(fields[valueIndex])
                         parsedValue := parseMetricValue(rawValue, state.logger)
                         state.currentEstablished = parsedValue
-
-                        if state.debugEnabled {
-                                state.logger.Debug("解析CurrEstab值", 
-                                        zap.String("raw", rawValue),
-                                        zap.Float64("parsed", parsedValue))
-                        }
+                        state.logger.Debug("解析CurrEstab值",
+                                zap.String("raw", rawValue),
+                                zap.Float64("parsed", parsedValue))
                 }
                 break
         }
@@ -238,27 +256,23 @@ func streamParseAndReport(r io.Reader, collector *TCPQueueCollector,
                         zap.Int("lineNumber", lineCount),
                         zap.ByteString("content", lineBytes))
 
-                handled := false
-                for prefix, handler := range lineHandlers {
-                        if bytes.HasPrefix(lineBytes, []byte(prefix)) {
-                                logger.Trace("匹配到处理器",
-                                        zap.String("prefix", prefix))
-                                handler(lineBytes, state)
-                                handled = true
-                                handledCount++
-                                break
-                        }
-                }
-
-                if !handled && state.debugEnabled {
-                        logger.Debug("未处理的行",
-                                zap.ByteString("line", lineBytes))
-                }
+               for _, lh := range lineHandlers {
+                       if bytes.HasPrefix(lineBytes, []byte(lh.prefix)) {
+                               logger.Trace("匹配到处理器",
+                                       zap.String("prefix", lh.prefix))
+                               lh.handler(lineBytes, state)
+                               handledCount++
+                               break
+                       }
+               }
         }
 
-        logger.Debug("解析完成",
+        logger.Info("解析完成",
                 zap.Int("totalLines", lineCount),
-                zap.Int("handledLines", handledCount))
+                zap.Int("handledLines", handledCount),
+                zap.Float64("SyncookiesSent", state.syncookiesSent),
+                zap.Float64("ListenOverflows", state.listenOverflows),
+                zap.Float64("ListenDrops", state.listenDrops))
 
         // 上报指标
         reportMetric := func(desc *prometheus.Desc, value float64, name string) {
