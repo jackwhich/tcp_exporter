@@ -3,10 +3,12 @@ package main
 import (
         "bufio"
         "bytes"
+        "context"
         "io"
         "strconv"
 
         "github.com/prometheus/client_golang/prometheus"
+        "tcp-exporter/utils"
         "go.uber.org/zap"
 )
 
@@ -31,24 +33,24 @@ type parseState struct {
         listenOverflows   float64    // 监听队列溢出值
         listenDrops       float64    // 监听队列丢弃值
         currentEstablished float64    // 当前已建立连接数值
-        logger            *Logger    // 日志记录器
+        ctx               context.Context // 上下文
 }
 
 // 创建解析状态
-func newParseState(logger *Logger) *parseState {
+func newParseState(ctx context.Context) *parseState {
         return &parseState{
-                logger: logger,
+                ctx: ctx,
         }
 }
 
 // 解析指标值
 // valueStr: 待解析的字符串
-// logger: 日志记录器
+// ctx: 上下文
 // 返回值: 解析后的浮点数值，解析失败返回0并记录日志
-func parseMetricValue(valueStr string, logger *Logger) float64 {
+func parseMetricValue(ctx context.Context, valueStr string) float64 {
         value, err := strconv.ParseFloat(valueStr, 64)
         if err != nil {
-                logger.Debug("解析指标值失败",
+                utils.Log.Debug(ctx, "解析指标值失败",
                         zap.String("value", valueStr),
                         zap.Error(err))
                 return 0
@@ -83,25 +85,25 @@ func handleTCPExtLine(lineBytes []byte, state *parseState) {
                         keys[i] = string(f)
                 }
                 state.tcpExtKeys = keys
-                state.logger.Debug("解析TCP扩展指标头",
+                utils.Log.Debug(state.ctx, "解析TCP扩展指标头",
                         zap.Strings("keys", keys),
                         zap.ByteString("line", lineBytes))
                 return
         }
         // 否则为数据行
         if state.tcpExtKeys == nil {
-                state.logger.Debug("跳过TCP扩展数据行，缺少表头")
+                utils.Log.Debug(state.ctx, "跳过TCP扩展数据行，缺少表头")
                 return
         }
         if len(fields)-1 < len(state.tcpExtKeys) {
-                state.logger.Debug("TCP扩展数据行格式错误",
+                utils.Log.Debug(state.ctx, "TCP扩展数据行格式错误",
                         zap.ByteString("line", lineBytes),
                         zap.Int("fields", len(fields)),
                         zap.Int("keys", len(state.tcpExtKeys)))
                 return
         }
         for i, key := range state.tcpExtKeys {
-                value := parseMetricValue(string(fields[i+1]), state.logger)
+                value := parseMetricValue(state.ctx, string(fields[i+1]))
                 switch key {
                 case KeySyncookiesSent:
                         state.syncookiesSent = value
@@ -111,7 +113,7 @@ func handleTCPExtLine(lineBytes []byte, state *parseState) {
                         state.listenDrops = value
                 }
         }
-        state.logger.Info("处理TCP扩展数据行",
+        utils.Log.Info(state.ctx, "处理TCP扩展数据行",
                 zap.Float64("SyncookiesSent", state.syncookiesSent),
                 zap.Float64("ListenOverflows", state.listenOverflows),
                 zap.Float64("ListenDrops", state.listenDrops))
@@ -126,10 +128,10 @@ func handleSomaxconnLine(lineBytes []byte, state *parseState) {
 
         valueBytes := bytes.TrimSpace(parts[1])
         valueStr := string(valueBytes)
-        parsedValue := parseMetricValue(valueStr, state.logger)
+        parsedValue := parseMetricValue(state.ctx, valueStr)
         state.somaxconnValue = parsedValue
 
-        state.logger.Debug("解析somaxconn值", zap.Float64("value", parsedValue))
+        utils.Log.Debug(state.ctx, "解析somaxconn值", zap.Float64("value", parsedValue))
 }
 
 // 简化TCP行处理
@@ -163,7 +165,7 @@ func handleTCPHeaderLine(fields [][]byte, state *parseState) {
         }
         state.snmpHeaders = headers
 
-        state.logger.Debug("设置TCP SNMP表头",
+        utils.Log.Debug(state.ctx, "设置TCP SNMP表头",
                 zap.Strings("headers", headers))
 }
 
@@ -192,13 +194,13 @@ func handleTCPDataLine(fields [][]byte, state *parseState) {
         if headers == nil {
                 // 使用默认表头
                 headers = defaultTCPHeaders
-                state.logger.Debug("使用默认TCP表头",
+                utils.Log.Debug(state.ctx, "使用默认TCP表头",
                         zap.Strings("headers", headers))
         }
 
         // 检查数据行字段数是否与表头匹配
         if len(fields)-1 < len(headers) {
-                state.logger.Debug("数据行字段数少于表头字段数",
+                utils.Log.Debug(state.ctx, "数据行字段数少于表头字段数",
                         zap.Int("fields", len(fields)-1),
                         zap.Int("headers", len(headers)))
                 return
@@ -213,9 +215,9 @@ func handleTCPDataLine(fields [][]byte, state *parseState) {
                 valueIndex := headerIndex + 1
                 if valueIndex < len(fields) {
                         rawValue := string(fields[valueIndex])
-                        parsedValue := parseMetricValue(rawValue, state.logger)
+                        parsedValue := parseMetricValue(state.ctx, rawValue)
                         state.currentEstablished = parsedValue
-                        state.logger.Debug("解析CurrEstab值",
+                        utils.Log.Debug(state.ctx, "解析CurrEstab值",
                                 zap.String("raw", rawValue),
                                 zap.Float64("parsed", parsedValue))
                 }
@@ -227,15 +229,16 @@ func handleTCPDataLine(fields [][]byte, state *parseState) {
 func streamParseAndReport(r io.Reader, collector *TCPQueueCollector,
         metricChan chan<- prometheus.Metric, namespace, pod, ip, container string) {
 
+        ctx := context.Background()
         reader := bufio.NewReader(r)
         labels := []string{namespace, pod, ip, container}
-        logger.Debug("开始解析TCP指标",
+        utils.Log.Debug(ctx, "开始解析TCP指标",
                 zap.String("namespace", namespace),
                 zap.String("pod", pod),
                 zap.String("ip", ip),
                 zap.String("container", container))
 
-        state := newParseState(logger)
+        state := newParseState(ctx)
         lineCount := 0
         handledCount := 0
 
@@ -248,17 +251,17 @@ func streamParseAndReport(r io.Reader, collector *TCPQueueCollector,
                 lineCount++
                 lineBytes = bytes.TrimSpace(lineBytes)
                 if len(lineBytes) == 0 {
-                        logger.Trace("跳过空行")
+                        utils.Log.Trace(ctx, "跳过空行")
                         continue
                 }
 
-                logger.Trace("处理行",
+                utils.Log.Trace(ctx, "处理行",
                         zap.Int("lineNumber", lineCount),
                         zap.ByteString("content", lineBytes))
 
                for _, lh := range lineHandlers {
                        if bytes.HasPrefix(lineBytes, []byte(lh.prefix)) {
-                               logger.Trace("匹配到处理器",
+                               utils.Log.Trace(ctx, "匹配到处理器",
                                        zap.String("prefix", lh.prefix))
                                lh.handler(lineBytes, state)
                                handledCount++
@@ -267,7 +270,7 @@ func streamParseAndReport(r io.Reader, collector *TCPQueueCollector,
                }
         }
 
-        logger.Info("解析完成",
+        utils.Log.Info(ctx, "解析完成",
                 zap.Int("totalLines", lineCount),
                 zap.Int("handledLines", handledCount),
                 zap.Float64("SyncookiesSent", state.syncookiesSent),
@@ -276,7 +279,7 @@ func streamParseAndReport(r io.Reader, collector *TCPQueueCollector,
 
         // 上报指标
         reportMetric := func(desc *prometheus.Desc, value float64, name string) {
-                logger.Debug("上报指标",
+                utils.Log.Debug(ctx, "上报指标",
                         zap.String("name", name),
                         zap.Float64("value", value),
                         zap.String("namespace", namespace),
@@ -292,7 +295,7 @@ func streamParseAndReport(r io.Reader, collector *TCPQueueCollector,
         reportMetric(collector.descListenDrops, state.listenDrops, KeyListenDrops)
         reportMetric(collector.descCurrentEstablished, state.currentEstablished, KeyCurrEstab)
 
-        logger.Debug("指标上报完成",
+        utils.Log.Debug(ctx, "指标上报完成",
                 zap.String("namespace", namespace),
                 zap.String("pod", pod),
                 zap.String("ip", ip),
