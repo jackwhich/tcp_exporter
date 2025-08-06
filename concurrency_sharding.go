@@ -117,8 +117,9 @@ func (cm *ConcurrencyManager) AcquireDep(ctx context.Context, namespace, deploym
 
 	if loaded {
 		// 其他goroutine已经创建，使用现有的
-		utils.Log.Trace(ctx, "其他goroutine已创建信号量，关闭新创建信号量",
-			zap.String("key", key))
+		utils.Log.Info(ctx, "其他goroutine已创建信号量，关闭新创建信号量",
+			zap.String("命名空间", namespace),
+			zap.String("部署名", deployment))
 		close(newSem) // 避免内存泄漏
 	} else {
 		utils.Log.Info(ctx, "成功创建新信号量",

@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zapcore" 
 )
 
 // LoggerConfig 定义日志配置接口
@@ -85,7 +85,7 @@ func getTraceID(ctx context.Context) string {
 // Trace 记录TRACE级别日志
 func (l *Logger) Trace(ctx context.Context, msg string, fields ...zap.Field) {
 	fields = append(fields, zap.String("trace_id", getTraceID(ctx)))
-	l.Debug(ctx, msg, fields...) // 传递context给Debug方法
+	l.Logger.Debug(msg, fields...)
 }
 
 // Debug 记录DEBUG级别日志

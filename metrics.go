@@ -1,15 +1,16 @@
 package main
 
 import (
-        "bufio"
-        "bytes"
-        "context"
-        "io"
-        "strconv"
+	"bufio"
+	"bytes"
+	"context"
+	"io"
+	"strconv"
 
-        "github.com/prometheus/client_golang/prometheus"
-        "tcp-exporter/utils"
-        "go.uber.org/zap"
+	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"tcp-exporter/utils"
+	"go.uber.org/zap"
 )
 
 // 定义指标键常量
@@ -229,7 +230,8 @@ func handleTCPDataLine(fields [][]byte, state *parseState) {
 func streamParseAndReport(r io.Reader, collector *TCPQueueCollector,
         metricChan chan<- prometheus.Metric, namespace, pod, ip, container string) {
 
-        ctx := context.Background()
+        // 创建带trace ID的上下文
+        ctx := context.WithValue(context.Background(), utils.TraceIDKey, "metrics-"+uuid.NewString())
         reader := bufio.NewReader(r)
         labels := []string{namespace, pod, ip, container}
         utils.Log.Debug(ctx, "开始解析TCP指标",
