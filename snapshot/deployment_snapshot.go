@@ -1,4 +1,6 @@
-package main
+// Package snapshot 提供 Kubernetes 部署和 Pod 快照管理功能，
+// 支持快照加载、保存和监视 Pod 变更时自动更新快照
+package snapshot
 
 import (
 	"context"
@@ -16,6 +18,16 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
+
+// Snapshot 表示整个集群的快照
+type Snapshot struct {
+	Namespaces map[string]NamespaceSnapshot `json:"namespaces"`
+}
+
+// NamespaceSnapshot 表示单个命名空间的快照
+type NamespaceSnapshot struct {
+	Deployments map[string][]string `json:"deployments"`
+}
 
 // SnapshotManager 管理Kubernetes快照的创建和持久化
 type SnapshotManager struct {

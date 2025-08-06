@@ -9,6 +9,7 @@ import (
 	"tcp-exporter/config"
 	"tcp-exporter/service"
 	"tcp-exporter/utils"
+	"tcp-exporter/snapshot"
 	"go.uber.org/zap"
 )
 
@@ -39,7 +40,7 @@ func main() {
 	utils.Log.Info(context.Background(), "Kubernetes客户端初始化成功")
 
 	utils.Log.Debug(context.Background(), "创建快照管理器")
-	snapshotManager := NewSnapshotManager(
+	snapshotManager := snapshot.NewSnapshotManager(
 		factory.Apps().V1().Deployments().Lister(),
 		factory.Core().V1().Pods().Lister(),
 		cfg,

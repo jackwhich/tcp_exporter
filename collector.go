@@ -22,9 +22,19 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/kubernetes/scheme"
 	"tcp-exporter/config"
+	"tcp-exporter/snapshot"
 	"tcp-exporter/utils"
 	"tcp-exporter/cmd"
 )
+
+
+
+type podTask struct {
+	deploymentName string
+	namespace     string
+	pod           *corev1.Pod
+	containerName string
+}
 
 func buildIgnoreSet(ignoreContainers []string) map[string]struct{} {
         ignores := make(map[string]struct{}, len(ignoreContainers))
@@ -107,7 +117,7 @@ func (collector *TCPQueueCollector) Describe(descChan chan<- *prometheus.Desc) {
         descChan <- collector.descCurrentEstablished
 }
 
-func (collector *TCPQueueCollector) buildTasks(ctx context.Context, snap *Snapshot) []podTask {
+func (collector *TCPQueueCollector) buildTasks(ctx context.Context, snap *snapshot.Snapshot) []podTask {
 	total := 0
 	for _, nsData := range snap.Namespaces {
 		for _, pods := range nsData.Deployments {
@@ -318,7 +328,7 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 	taskCtx := context.WithValue(context.Background(), utils.TraceIDKey, "collector-"+uuid.NewString())
 	
 	utils.Log.Info(taskCtx, "开始收集 TCP 队列指标")
-	snap, err := LoadSnapshot(taskCtx, collector.cacheFilePath)
+	snap, err := snapshot.LoadSnapshot(taskCtx, collector.cacheFilePath)
 	if err != nil {
 		utils.Log.Error(taskCtx, "加载快照失败，跳过本次采集",
 			zap.String("cacheFilePath", collector.cacheFilePath),
