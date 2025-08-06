@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/kubernetes/scheme"
 	"tcp-exporter/utils"
+	"tcp-exporter/cmd"
 )
 
 func buildIgnoreSet(ignoreContainers []string) map[string]struct{} {
@@ -233,7 +234,7 @@ func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t pod
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
 			Container: t.containerName,
-			Command:   getTCPMetricsCommand(),
+			Command:   cmd.GetTCPMetricsCommand(),
 			Stdout:    true,
 			Stderr:    true,
 		}, scheme.ParameterCodec)

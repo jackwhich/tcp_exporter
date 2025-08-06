@@ -3,13 +3,12 @@ package main
 import (
         "context"
         "flag"
-        "fmt"
         "os"
 
         "github.com/fsnotify/fsnotify"
-        "tcp-exporter/utils"
         "go.uber.org/zap"
         "gopkg.in/yaml.v2"
+        "tcp-exporter/utils"
 )
 
 
@@ -42,16 +41,12 @@ func (c *Config) GetLogLevel() string {
 func loadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		ctx := context.Background()
-		utils.Log.Error(ctx, "读取配置文件失败", zap.Error(err))
-		os.Exit(1)
+		zap.L().Fatal("读取配置文件失败", zap.Error(err))
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		ctx := context.Background()
-		utils.Log.Error(ctx, "解析 YAML 失败", zap.Error(err))
-		os.Exit(1)
+		zap.L().Fatal("解析 YAML 失败", zap.Error(err))
 	}
 
         return &cfg, nil
@@ -60,14 +55,12 @@ func loadConfig(path string) (*Config, error) {
 func mustLoadConfig() (*Config, string) {
         configPath := flag.String("config", "config.yaml", "配置文件路径")
         flag.Parse()
-        fmt.Fprintf(os.Stdout, "加载配置文件: %s\n", *configPath)
+        zap.L().Info("加载配置文件", zap.String("path", *configPath))
         cfg, err := loadConfig(*configPath)
         if err != nil {
-                ctx := context.Background()
-                utils.Log.Error(ctx, "读取配置文件失败", zap.Error(err))
-                os.Exit(1)
+                zap.L().Fatal("读取配置文件失败", zap.Error(err))
         }
-        fmt.Fprintf(os.Stdout, "配置文件加载成功: %s\n", *configPath)
+        zap.L().Info("配置文件加载成功", zap.String("path", *configPath))
         return cfg, *configPath
 }
 
