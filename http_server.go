@@ -8,10 +8,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
+	"tcp-exporter/config"
 	"tcp-exporter/utils"
 )
 
-func runHTTPServer(cfg *Config) {
+func runHTTPServer(cfg *config.Config) {
 	gin.SetMode(cfg.Server.GinMode)
 	router := gin.New()
 

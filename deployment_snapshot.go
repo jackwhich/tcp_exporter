@@ -6,6 +6,7 @@ import (
 	"os"
 	
 	"github.com/google/uuid"
+	"tcp-exporter/config"
 	"tcp-exporter/utils"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
@@ -20,11 +21,11 @@ import (
 type SnapshotManager struct {
         deploymentLister appslisters.DeploymentLister
         podLister        corelisters.PodLister
-        cfg              *Config
+        cfg              *config.Config
 }
 
 // NewSnapshotManager 创建新的快照管理器
-func NewSnapshotManager(deploymentLister appslisters.DeploymentLister, podLister corelisters.PodLister, cfg *Config) *SnapshotManager {
+func NewSnapshotManager(deploymentLister appslisters.DeploymentLister, podLister corelisters.PodLister, cfg *config.Config) *SnapshotManager {
         return &SnapshotManager{
                 deploymentLister: deploymentLister,
                 podLister:        podLister,

@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/kubernetes/scheme"
+	"tcp-exporter/config"
 	"tcp-exporter/utils"
 	"tcp-exporter/cmd"
 )
@@ -352,7 +353,7 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 	collector.collectTasks(taskCtx, tasks, metricChan, cm)
 }
 
-func registerCollector(clientset *kubernetes.Clientset, restConfig *rest.Config, cfg *Config, factory informers.SharedInformerFactory) *TCPQueueCollector {
+func registerCollector(clientset *kubernetes.Clientset, restConfig *rest.Config, cfg *config.Config, factory informers.SharedInformerFactory) *TCPQueueCollector {
         deploymentLister := factory.Apps().V1().Deployments().Lister()
         podLister := factory.Core().V1().Pods().Lister()
         collector := TCPQueueCollectorFactory(

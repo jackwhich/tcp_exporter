@@ -5,13 +5,14 @@ import (
 	"os"
 	"runtime/debug"
 	
+	"tcp-exporter/config"
 	"tcp-exporter/utils"
 	"go.uber.org/zap"
 )
 
 func main() {
 	// 先加载配置
-	cfg, configPath := mustLoadConfig()
+	cfg, configPath := config.MustLoadConfig()
 
 	// 初始化全局logger
 	utils.InitLogger(cfg)
@@ -47,7 +48,7 @@ func main() {
 	collector := registerCollector(clientset, restConfig, cfg, factory)
 	utils.Log.Info(context.Background(), "指标收集器注册成功")
 
-	go watchConfig(configPath, func(newCfg *Config) {
+	go config.WatchConfig(configPath, func(newCfg *config.Config) {
 		utils.Log.Info(context.Background(), "配置热重载完成",
 			zap.String("logLevel", newCfg.Server.LogLevel),
 			zap.Strings("ignoreContainers", newCfg.Kubernetes.IgnoreContainers))

@@ -1,47 +1,48 @@
 package main
 
 import (
-        "context"
-        "fmt"
+	"context"
+	"fmt"
 
-        "go.uber.org/zap"
-        "k8s.io/client-go/informers"
-        "k8s.io/client-go/kubernetes"
-        "k8s.io/client-go/rest"
-        "k8s.io/client-go/tools/cache"
-        "k8s.io/client-go/tools/clientcmd"
-        "tcp-exporter/utils"
+	"go.uber.org/zap"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
+	"tcp-exporter/config"
+	"tcp-exporter/utils"
 )
 
-func initK8sClient(ctx context.Context, cfg *Config) (*kubernetes.Clientset, *rest.Config, informers.SharedInformerFactory) {
- clientset, restConfig, err := K8sClientFactory(ctx, cfg)
- if err != nil {
- 	utils.Log.Error(ctx, "构建 Kubernetes 客户端失败", zap.Error(err))
- }
-        factory := informers.NewSharedInformerFactoryWithOptions(
-                clientset,
-                0,
-        )
-        depInformer := factory.Apps().V1().Deployments().Informer()
-        podInformer := factory.Core().V1().Pods().Informer()
-        stopCh := make(chan struct{})
-        factory.Start(stopCh)
+func initK8sClient(ctx context.Context, cfg *config.Config) (*kubernetes.Clientset, *rest.Config, informers.SharedInformerFactory) {
+	 clientset, restConfig, err := K8sClientFactory(ctx, cfg)
+	 if err != nil {
+	 	utils.Log.Error(ctx, "构建 Kubernetes 客户端失败", zap.Error(err))
+	 }
+         factory := informers.NewSharedInformerFactoryWithOptions(
+                 clientset,
+                 0,
+         )
+         depInformer := factory.Apps().V1().Deployments().Informer()
+         podInformer := factory.Core().V1().Pods().Informer()
+         stopCh := make(chan struct{})
+         factory.Start(stopCh)
 
-        utils.Log.Debug(ctx, "等待缓存同步")
-        if !cache.WaitForCacheSync(stopCh, depInformer.HasSynced, podInformer.HasSynced) {
-                utils.Log.Warn(ctx, "缓存同步超时或失败")
-        } else {
-                utils.Log.Info(ctx, "缓存同步完成")
-        }
-        
-        utils.Log.Info(ctx, "Kubernetes 客户端和 informer 初始化完成",
-                zap.Bool("use_in_cluster", cfg.Kubernetes.UseInCluster),
-                zap.String("kubeconfig_path", cfg.Kubernetes.KubeConfigPath),
-                zap.String("api_server", restConfig.Host))
-        return clientset, restConfig, factory
+         utils.Log.Debug(ctx, "等待缓存同步")
+         if !cache.WaitForCacheSync(stopCh, depInformer.HasSynced, podInformer.HasSynced) {
+                 utils.Log.Warn(ctx, "缓存同步超时或失败")
+         } else {
+                 utils.Log.Info(ctx, "缓存同步完成")
+         }
+         
+         utils.Log.Info(ctx, "Kubernetes 客户端和 informer 初始化完成",
+                 zap.Bool("use_in_cluster", cfg.Kubernetes.UseInCluster),
+                 zap.String("kubeconfig_path", cfg.Kubernetes.KubeConfigPath),
+                 zap.String("api_server", restConfig.Host))
+         return clientset, restConfig, factory
 }
 
-func K8sClientFactory(ctx context.Context, cfg *Config) (*kubernetes.Clientset, *rest.Config, error) {
+func K8sClientFactory(ctx context.Context, cfg *config.Config) (*kubernetes.Clientset, *rest.Config, error) {
 	utils.Log.Debug(ctx, "K8sClientFactory: 开始构建 Kubernetes 客户端",
 		zap.Bool("use_in_cluster", cfg.Kubernetes.UseInCluster))
 
