@@ -1,4 +1,6 @@
-package main
+// Package collector 提供 TCP 队列指标的收集与解析逻辑，
+// 实现 Prometheus Collector 接口，通过执行 Pod 内命令和读取 /proc 接口获取指标。
+package collector
 
 import (
 	"context"
@@ -107,6 +109,10 @@ func TCPQueueCollectorFactory(
                         labels, nil,
                 ),
         }
+}
+
+func (collector *TCPQueueCollector) SetIgnoreSet(ignoreContainers []string) {
+        collector.ignoreSet = buildIgnoreSet(ignoreContainers)
 }
 
 func (collector *TCPQueueCollector) Describe(descChan chan<- *prometheus.Desc) {
@@ -363,7 +369,7 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 	collector.collectTasks(taskCtx, tasks, metricChan, cm)
 }
 
-func registerCollector(clientset *kubernetes.Clientset, restConfig *rest.Config, cfg *config.Config, factory informers.SharedInformerFactory) *TCPQueueCollector {
+func RegisterCollector(clientset *kubernetes.Clientset, restConfig *rest.Config, cfg *config.Config, factory informers.SharedInformerFactory) *TCPQueueCollector {
         deploymentLister := factory.Apps().V1().Deployments().Lister()
         podLister := factory.Core().V1().Pods().Lister()
         collector := TCPQueueCollectorFactory(

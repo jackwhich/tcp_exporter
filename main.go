@@ -10,6 +10,7 @@ import (
 	"tcp-exporter/service"
 	"tcp-exporter/utils"
 	"tcp-exporter/snapshot"
+	"tcp-exporter/collector"  // 新增collector包导入
 	"go.uber.org/zap"
 )
 
@@ -48,14 +49,14 @@ func main() {
 	utils.Log.Info(context.Background(), "启动快照管理器监听")
 	go snapshotManager.RunWatcher(factory)
 
-	collector := registerCollector(clientset, restConfig, cfg, factory)
+	collector := collector.RegisterCollector(clientset, restConfig, cfg, factory)
 	utils.Log.Info(context.Background(), "指标收集器注册成功")
 
 	go config.WatchConfig(configPath, func(newCfg *config.Config) {
 		utils.Log.Info(context.Background(), "配置热重载完成",
 			zap.String("logLevel", newCfg.Server.LogLevel),
 			zap.Strings("ignoreContainers", newCfg.Kubernetes.IgnoreContainers))
-		collector.ignoreSet = buildIgnoreSet(newCfg.Kubernetes.IgnoreContainers)
+		collector.SetIgnoreSet(newCfg.Kubernetes.IgnoreContainers)
 	})
 
 	utils.Log.Info(context.Background(), "启动HTTP服务器",

@@ -1,4 +1,6 @@
-package main
+// Package collector 提供并发信号量管理功能，
+// 支持全局与部署级的并发限流和分片调度
+package collector
 
 import (
 	"context"

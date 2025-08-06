@@ -1,4 +1,6 @@
-package main
+// Package collector 提供 TCP 扩展与基础指标的解析与上报功能
+// 包含处理 TcpExt、somaxconn 和 SNMP Tcp 行的逻辑，以及 streamParseAndReport
+package collector
 
 import (
 	"bufio"
