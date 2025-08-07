@@ -84,7 +84,7 @@ func getTraceID(ctx context.Context) string {
 
 // Trace 记录TRACE级别日志
 func (l *Logger) Trace(ctx context.Context, msg string, fields ...zap.Field) {
-	fields = append(fields, zap.String("trace_id", getTraceID(ctx)))
+	fields = append(fields, zap.String("traceID", getTraceID(ctx)))
 	l.Logger.Debug(msg, fields...)
 }
 

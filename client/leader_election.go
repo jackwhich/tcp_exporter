@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"os"
+	"strconv"
 	"sync/atomic"
 	"time"
 	
@@ -26,6 +27,22 @@ func RunLeaderElection(
 ) {
 	lockName := "tcp-exporter-leader"
 	podName := os.Getenv("POD_NAME")
+	if podName == "" {
+		// 非容器环境回退处理
+		hostname, _ := os.Hostname()
+		if hostname == "" {
+			// 生成基于时间戳和进程ID的唯一标识
+			timestamp := time.Now().UnixNano()
+			pid := os.Getpid()
+			podName = "local-" + strconv.FormatInt(timestamp, 10) + "-" + strconv.Itoa(pid)
+			utils.Log.Info(context.Background(), "生成唯一身份标识",
+				zap.String("identity", podName))
+		} else {
+			podName = hostname
+			utils.Log.Info(context.Background(), "使用主机名作为身份标识",
+				zap.String("identity", podName))
+		}
+	}
 	
 	// 创建Lease锁
 	lock := &resourcelock.LeaseLock{
@@ -48,26 +65,34 @@ func RunLeaderElection(
 		RetryPeriod:     5 * time.Second,  // 平衡重试频率
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
+				// 创建带有trace_id的新上下文
+				traceCtx := context.WithValue(ctx, utils.TraceIDKey, "election-event")
+				
 				// 原子标记为领导者
 				atomic.StoreInt32(&leaderStatus, 1)
-				utils.Log.Info(ctx, "成为领导者，负责生成快照")
-				leaderFunc(ctx)
+				utils.Log.Info(traceCtx, "成为领导者，负责生成快照")
+				leaderFunc(traceCtx) // 使用带有trace_id的上下文
 			},
 			OnStoppedLeading: func() {
 				// 原子标记为跟随者
 				atomic.StoreInt32(&leaderStatus, 0)
-				utils.Log.Debug(context.Background(), "失去领导权") // 改为Debug级别
+				// 创建带有trace_id的新上下文
+				traceCtx := context.WithValue(context.Background(), utils.TraceIDKey, "election-event")
+				utils.Log.Debug(traceCtx, "失去领导权")
 			},
 			OnNewLeader: func(identity string) {
 				if identity == podName {
 					return
 				}
+				// 创建带有trace_id的新上下文
+				traceCtx := context.WithValue(context.Background(), utils.TraceIDKey, "election-event")
+				
 				// 仅当状态变更时记录
 				if atomic.LoadInt32(&leaderStatus) == 1 {
-					utils.Log.Debug(context.Background(), "放弃领导权",
+					utils.Log.Debug(traceCtx, "放弃领导权",
 						zap.String("newLeader", identity))
 				} else {
-					utils.Log.Debug(context.Background(), "当前领导者",
+					utils.Log.Debug(traceCtx, "当前领导者",
 						zap.String("leader", identity))
 				}
 			},
@@ -80,5 +105,7 @@ func RunLeaderElection(
 		utils.Log.Debug(context.Background(), "领导者选举协程退出")
 	}()
 	
-	utils.Log.Debug(ctx, "领导者选举协程已启动")
+	// 创建带有trace_id的上下文
+	traceCtx := context.WithValue(ctx, utils.TraceIDKey, "leader-election")
+	utils.Log.Debug(traceCtx, "领导者选举协程已启动")
 }

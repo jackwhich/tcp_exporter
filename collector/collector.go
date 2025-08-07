@@ -427,6 +427,16 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 		zap.Int("总任务数", len(tasks)),
 		zap.Int("副本数", replicas),
 		zap.Int("当前副本序号", ordinal))
+		
+	// 调试：记录前10个分片任务
+	for i, task := range shardedTasks {
+		if i < 10 {
+			utils.Log.Debug(taskCtx, "分片任务详情",
+				zap.String("pod", task.pod.Name),
+				zap.String("namespace", task.pod.Namespace),
+				zap.String("container", task.containerName))
+		}
+	}
 	
 	// 使用ants协程池处理任务
 	pool, _ := ants.NewPool(collector.maxConcurrent, ants.WithPreAlloc(true))
