@@ -7,7 +7,6 @@ import (
 	"hash/fnv"
 	"io"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,7 +27,6 @@ import (
 	"tcp-exporter/snapshot"
 	"tcp-exporter/utils"
 	"tcp-exporter/cmd"
-	"github.com/panjf2000/ants/v2"
 )
 
 // getOrdinalFromPodName 从Pod名称提取序号
@@ -157,58 +155,34 @@ func (collector *TCPQueueCollector) Describe(descChan chan<- *prometheus.Desc) {
         descChan <- collector.descCurrentEstablished
 }
 
-func (collector *TCPQueueCollector) buildTasks(ctx context.Context, snap *snapshot.Snapshot) []podTask {
-	total := 0
-	for _, nsData := range snap.Namespaces {
-		for _, pods := range nsData.Deployments {
-			total += len(pods)
-		}
-	}
-
-	tasks := make([]podTask, 0, total)
-
-	for nsName, nsData := range snap.Namespaces {
-		for depName, podInfos := range nsData.Deployments {
-			utils.Log.Debug(ctx, "处理 Deployment",
-				zap.String("namespace", nsName),
-				zap.String("deployment", depName),
-				zap.Int("podCount", len(podInfos)))
-			utils.Log.Trace(ctx, "Deployment 详情",
-				zap.Any("pods", podInfos))
-
-			for _, podInfo := range podInfos {
-				for _, container := range podInfo.Containers {
-					if container.State == "running" {
-						tasks = append(tasks, podTask{
-							deploymentName: depName,
-							namespace:     nsName,
-							podName:       podInfo.PodName,
-							containerName: container.Name,
-							podIP:         podInfo.IP,
-						})
-						utils.Log.Debug(ctx, "为 Pod 选择容器",
-							zap.String("namespace", nsName),
-							zap.String("pod", podInfo.PodName),
-							zap.String("container", container.Name))
-					} else {
-						utils.Log.Trace(ctx, "跳过非运行状态容器",
-							zap.String("pod", podInfo.PodName),
-							zap.String("container", container.Name),
-							zap.String("state", container.State))
+func (collector *TCPQueueCollector) buildTasks(ctx context.Context, snap *snapshot.Snapshot) <-chan podTask {
+	taskChan := make(chan podTask)
+	go func() {
+		defer close(taskChan)
+		for nsName, nsData := range snap.Namespaces {
+			for depName, podInfos := range nsData.Deployments {
+				utils.Log.Debug(ctx, "处理 Deployment",
+					zap.String("namespace", nsName),
+					zap.String("deployment", depName),
+					zap.Int("podCount", len(podInfos)))
+				
+				for _, podInfo := range podInfos {
+					for _, container := range podInfo.Containers {
+						if container.State == "running" {
+							taskChan <- podTask{
+								deploymentName: depName,
+								namespace:     nsName,
+								podName:       podInfo.PodName,
+								containerName: container.Name,
+								podIP:         podInfo.IP,
+							}
+						}
 					}
 				}
 			}
 		}
-	}
-
-	sort.Slice(tasks, func(i, j int) bool {
-		if tasks[i].namespace != tasks[j].namespace {
-			return tasks[i].namespace < tasks[j].namespace
-		}
-		return tasks[i].podName < tasks[j].podName
-	})
-
-	return tasks
+	}()
+	return taskChan
 }
 
 func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t podTask, metricChan chan<- prometheus.Metric, cm *ConcurrencyManager) {
@@ -367,73 +341,36 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 		}
 	}
 	
-	// 构建任务列表
-	tasks := collector.buildTasks(taskCtx, snap)
+	// 创建并发管理器（无需任务总数）
+	cm := NewConcurrencyManager(collector.maxConcurrent, collector.maxPodContainer)
 	
-	// 根据运行模式选择分片策略
-	var shardedTasks []podTask
+	// 获取任务通道
+	taskChan := collector.buildTasks(taskCtx, snap)
 	
-	if collector.cfg.Baremetal.Mode == "standalone" {
-		// 裸机模式：处理所有任务
-		shardedTasks = tasks
-		utils.Log.Info(taskCtx, "裸机模式运行，处理所有任务",
-			zap.Int("任务总数", len(shardedTasks)))
-	} else {
-		// Kubernetes模式：使用静态范围分片
-		replicas, _ := strconv.Atoi(os.Getenv("REPLICA_COUNT"))
-		podName := os.Getenv("POD_NAME")
-		ordinal := getOrdinalFromPodName(podName)
-		
-		utils.Log.Info(taskCtx, "当前Pod分片信息",
-			zap.String("podName", podName),
-			zap.Int("ordinal", ordinal),
-			zap.Int("replicas", replicas))
-		
-		// 静态范围分片
-		start := (len(tasks) * ordinal) / replicas
-		end := (len(tasks) * (ordinal + 1)) / replicas
-		shardedTasks = tasks[start:end]
-		
-		utils.Log.Info(taskCtx, "静态范围分片结果",
-			zap.Int("分片任务数", len(shardedTasks)),
-			zap.Int("总任务数", len(tasks)),
-			zap.Int("副本数", replicas),
-			zap.Int("当前副本序号", ordinal),
-			zap.Int("起始索引", start),
-			zap.Int("结束索引", end-1))
-	}
-	
-	// 创建并发管理器
-	cm := NewConcurrencyManager(len(shardedTasks), collector.maxConcurrent, collector.maxPodContainer)
-		
-	// 调试：记录前10个分片任务
-	for i, task := range shardedTasks {
-		if i < 10 {
-			utils.Log.Debug(taskCtx, "分片任务详情",
-				zap.String("pod", task.podName),
-				zap.String("namespace", task.namespace),
-				zap.String("container", task.containerName))
-		}
-	}
-	
-	// 使用ants协程池处理任务
-	pool, _ := ants.NewPool(collector.maxConcurrent, ants.WithPreAlloc(true))
-	defer pool.Release()
-	
-	// 使用等待组同步任务
+	// 使用原生goroutine处理任务
 	var wg sync.WaitGroup
-	wg.Add(len(shardedTasks))
-	
-	// 提交所有分片任务
-	for _, task := range shardedTasks {
-		task := task
-		pool.Submit(func() {
+	for task := range taskChan {
+		// Kubernetes模式分片检查
+		if collector.cfg.Baremetal.Mode != "standalone" {
+			replicas, _ := strconv.Atoi(os.Getenv("REPLICA_COUNT"))
+			podName := os.Getenv("POD_NAME")
+			ordinal := getOrdinalFromPodName(podName)
+			
+			// 使用部署名称哈希分片
+			hash := fnv.New32a()
+			hash.Write([]byte(task.deploymentName))
+			if int(hash.Sum32())%replicas != ordinal {
+				continue
+			}
+		}
+		
+		wg.Add(1)
+		go func(t podTask) {
 			defer wg.Done()
-			collector.collectSingleTask(taskCtx, task, metricChan, cm)
-		})
+			collector.collectSingleTask(taskCtx, t, metricChan, cm)
+		}(task)
 	}
 	
-	// 等待所有任务完成
 	wg.Wait()
 }
 

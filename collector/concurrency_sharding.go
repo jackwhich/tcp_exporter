@@ -11,15 +11,18 @@ import (
 	"go.uber.org/zap"
 )
 
+const bucketCount = 16
+
 type ConcurrencyManager struct {
-        globalSem      chan struct{}
-        deploymentSems *sync.Map // 使用sync.Map实现无锁读取
+        globalSem    chan struct{}
+        buckets      [bucketCount]chan struct{}
+        bucketLocks  [bucketCount]sync.Mutex
+        bucketCounts [bucketCount]int
 }
 
-func NewConcurrencyManager(totalTasks, maxGlobal, maxPerDep int) *ConcurrencyManager {
+func NewConcurrencyManager(maxGlobal, maxPerDep int) *ConcurrencyManager {
         return &ConcurrencyManager{
-                globalSem:      make(chan struct{}, maxGlobal),
-                deploymentSems: &sync.Map{},
+                globalSem: make(chan struct{}, maxGlobal),
         }
 }
 
@@ -95,71 +98,67 @@ func (cm *ConcurrencyManager) ReleaseGlobal(ctx context.Context) {
 }
 
 func (cm *ConcurrencyManager) AcquireDep(ctx context.Context, namespace, deployment string, limit int) {
-	key := namespace + "/" + deployment
+	// 计算部署的桶索引
+	h := fnv.New32a()
+	h.Write([]byte(namespace + "/" + deployment))
+	bucketIdx := h.Sum32() % bucketCount
 
-	// 快速路径：尝试直接获取现有信号量
-	if sem, ok := cm.deploymentSems.Load(key); ok {
-		cm.acquire(ctx, concurrencySlot{
-			sem:       sem.(chan struct{}),
-			slotType:  "deployment",
-			namespace: namespace,
-			deployment: deployment,
-			capacity:  cap(sem.(chan struct{})),
-		})
-		return
+	// 获取桶锁
+	cm.bucketLocks[bucketIdx].Lock()
+	defer cm.bucketLocks[bucketIdx].Unlock()
+
+	// 如果桶未初始化则创建
+	if cm.buckets[bucketIdx] == nil {
+		cm.buckets[bucketIdx] = make(chan struct{}, limit)
+		cm.bucketCounts[bucketIdx] = 0
 	}
 
-	// 慢速路径：创建新信号量
-	utils.Log.Debug(ctx, "为部署创建新信号量",
-		zap.String("命名空间", namespace),
-		zap.String("部署名", deployment),
-		zap.Int("limit", limit))
-	newSem := make(chan struct{}, limit)
-	sem, loaded := cm.deploymentSems.LoadOrStore(key, newSem)
+	// 桶计数器增加
+	cm.bucketCounts[bucketIdx]++
 
-	if loaded {
-		// 其他goroutine已经创建，使用现有的
-		utils.Log.Debug(ctx, "其他goroutine已创建信号量，关闭新创建信号量",
-			zap.String("命名空间", namespace),
-			zap.String("部署名", deployment))
-		close(newSem) // 避免内存泄漏
-	} else {
-		utils.Log.Debug(ctx, "成功创建新信号量",
-			zap.String("命名空间", namespace),
-			zap.String("部署名", deployment),
-			zap.Int("capacity", cap(newSem)))
-	}
-
-	cm.acquire(ctx, concurrencySlot{
-		sem:       sem.(chan struct{}),
-		slotType:  "deployment",
-		namespace: namespace,
-		deployment: deployment,
-		capacity:  cap(sem.(chan struct{})),
-	})
+	// 获取信号量
+	cm.buckets[bucketIdx] <- struct{}{}
+	
+	utils.Log.Debug(ctx, "获取部署信号量",
+		zap.String("namespace", namespace),
+		zap.String("deployment", deployment),
+		zap.Uint32("bucket", bucketIdx),
+		zap.Int("usage", len(cm.buckets[bucketIdx])),
+		zap.Int("capacity", cap(cm.buckets[bucketIdx])))
 }
 
 func (cm *ConcurrencyManager) ReleaseDep(ctx context.Context, namespace, deployment string) {
-	key := namespace + "/" + deployment
+	// 计算部署的桶索引
+	h := fnv.New32a()
+	h.Write([]byte(namespace + "/" + deployment))
+	bucketIdx := h.Sum32() % bucketCount
 
-	if sem, ok := cm.deploymentSems.Load(key); ok {
-		cm.release(ctx, concurrencySlot{
-			sem:       sem.(chan struct{}),
-			slotType:  "deployment",
-			namespace: namespace,
-			deployment: deployment,
-			capacity:  cap(sem.(chan struct{})),
-		})
-		semChan := sem.(chan struct{})
-		used := len(semChan)
-		capacity := cap(semChan)
+	// 获取桶锁
+	cm.bucketLocks[bucketIdx].Lock()
+	defer cm.bucketLocks[bucketIdx].Unlock()
 
-		utils.Log.Debug(ctx, "已释放部署信号量",
-			zap.String("命名空间", namespace),
-			zap.String("部署名", deployment),
-			zap.Int("used", used),
-			zap.Int("capacity", capacity))
+	if cm.buckets[bucketIdx] == nil {
+		return
 	}
+
+	// 释放信号量
+	<-cm.buckets[bucketIdx]
+	
+	// 桶计数器减少
+	cm.bucketCounts[bucketIdx]--
+	
+	// 如果桶为空则重置
+	if cm.bucketCounts[bucketIdx] == 0 {
+		close(cm.buckets[bucketIdx])
+		cm.buckets[bucketIdx] = nil
+	}
+
+	utils.Log.Debug(ctx, "释放部署信号量",
+		zap.String("namespace", namespace),
+		zap.String("deployment", deployment),
+		zap.Uint32("bucket", bucketIdx),
+		zap.Int("usage", len(cm.buckets[bucketIdx])),
+		zap.Int("capacity", cap(cm.buckets[bucketIdx])))
 }
 
 type ShardingMode int

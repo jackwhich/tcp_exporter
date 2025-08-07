@@ -27,9 +27,9 @@ type ContainerStatus struct {
 
 // PodInfo 表示Pod的详细信息
 type PodInfo struct {
-	PodName    string            `json:"pod_name"`
-	IP         string            `json:"ip,omitempty"`
-	Containers []ContainerStatus `json:"containers"`
+	PodName    string             `json:"pod_name"`
+	IP         string             `json:"ip,omitempty"`
+	Containers []*ContainerStatus `json:"containers"`
 }
 
 // Snapshot 表示整个集群的快照
@@ -39,7 +39,7 @@ type Snapshot struct {
 
 // NamespaceSnapshot 表示单个命名空间的快照
 type NamespaceSnapshot struct {
-	Deployments map[string][]PodInfo `json:"deployments"`
+	Deployments map[string][]*PodInfo `json:"deployments"`
 }
 
 // SnapshotManager 管理Kubernetes快照的创建和持久化
@@ -112,7 +112,7 @@ func (sm *SnapshotManager) ToFile(ctx context.Context) error {
 		utils.Log.Trace(ctx, "处理命名空间",
 			zap.String("namespace", ns))
 		nsSnapshot := NamespaceSnapshot{
-			Deployments: make(map[string][]PodInfo),
+			Deployments: make(map[string][]*PodInfo),
 		}
 
 		deps, err := sm.deploymentLister.Deployments(ns).List(labels.Everything())
@@ -137,10 +137,10 @@ func (sm *SnapshotManager) ToFile(ctx context.Context) error {
 				continue
 			}
 
-			var podInfos []PodInfo
+			var podInfos []*PodInfo
 			for _, pod := range pods {
 				// 收集容器状态
-				containers := []ContainerStatus{}
+				containers := []*ContainerStatus{}
 				for _, cs := range pod.Status.ContainerStatuses {
 					// 过滤忽略容器
 					if sm.shouldIgnoreContainer(cs.Name) {
@@ -157,14 +157,14 @@ func (sm *SnapshotManager) ToFile(ctx context.Context) error {
 						state = "terminated"
 					}
 					
-					containers = append(containers, ContainerStatus{
+					containers = append(containers, &ContainerStatus{
 						Name:  cs.Name,
 						State: state,
 					})
 				}
 				
 				// 添加到Pod信息
-				podInfos = append(podInfos, PodInfo{
+				podInfos = append(podInfos, &PodInfo{
 					PodName:    pod.Name,
 					IP:         pod.Status.PodIP,
 					Containers: containers,
@@ -181,8 +181,8 @@ func (sm *SnapshotManager) ToFile(ctx context.Context) error {
 		snapshot.Namespaces[ns] = nsSnapshot
 	}
 
-	// 使用缩进格式美化JSON输出
-	data, err := json.MarshalIndent(snapshot, "", "  ")
+	// 使用紧凑JSON格式减少内存占用
+	data, err := json.Marshal(snapshot)
 	if err != nil {
 		utils.Log.Error(ctx, "序列化快照失败", zap.Error(err))
 		return err

@@ -24,5 +24,7 @@ node_modules/
 git_commit_msg.txt
 
 snapshot_enhancement_plan.md
+memory-optimization-plan.md
+consistent-hash-fix-plan.md
 
 pod_snapshot.json
