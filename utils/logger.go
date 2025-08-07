@@ -76,8 +76,9 @@ const (
 	TraceIDKey contextKey = "traceID"
 )
 
-// 从context获取trace ID
-func getTraceID(ctx context.Context) string {
+// GetTraceID 从给定的 context 中获取 trace ID。
+// 如果不存在，则返回空字符串。
+func GetTraceID(ctx context.Context) string {
 	if traceID, ok := ctx.Value(TraceIDKey).(string); ok {
 		return traceID
 	}
@@ -86,37 +87,37 @@ func getTraceID(ctx context.Context) string {
 
 // Trace 记录TRACE级别日志
 func (l *Logger) Trace(ctx context.Context, msg string, fields ...zap.Field) {
-	fields = append(fields, zap.String("traceID", getTraceID(ctx)))
+	fields = append(fields, zap.String("traceID", GetTraceID(ctx)))
 	l.Logger.Debug(msg, fields...)
 }
 
 // Debug 记录DEBUG级别日志
 func (l *Logger) Debug(ctx context.Context, msg string, fields ...zap.Field) {
-	fields = append(fields, zap.String("trace_id", getTraceID(ctx)))
+	fields = append(fields, zap.String("trace_id", GetTraceID(ctx)))
 	l.Logger.Debug(msg, fields...)
 }
 
 // Info 记录INFO级别日志
 func (l *Logger) Info(ctx context.Context, msg string, fields ...zap.Field) {
-	fields = append(fields, zap.String("trace_id", getTraceID(ctx)))
+	fields = append(fields, zap.String("trace_id", GetTraceID(ctx)))
 	l.Logger.Info(msg, fields...)
 }
 
 // Warn 记录WARN级别日志
 func (l *Logger) Warn(ctx context.Context, msg string, fields ...zap.Field) {
-	fields = append(fields, zap.String("trace_id", getTraceID(ctx)))
+	fields = append(fields, zap.String("trace_id", GetTraceID(ctx)))
 	l.Logger.Warn(msg, fields...)
 }
 
 // Error 记录ERROR级别日志
 func (l *Logger) Error(ctx context.Context, msg string, fields ...zap.Field) {
-	fields = append(fields, zap.String("trace_id", getTraceID(ctx)))
+	fields = append(fields, zap.String("trace_id", GetTraceID(ctx)))
 	l.Logger.Error(msg, fields...)
 }
 
 // Fatal 记录FATAL级别日志
 func (l *Logger) Fatal(ctx context.Context, msg string, fields ...zap.Field) {
-	fields = append(fields, zap.String("trace_id", getTraceID(ctx)))
+	fields = append(fields, zap.String("trace_id", GetTraceID(ctx)))
 	l.Logger.Fatal(msg, fields...)
 }
 
