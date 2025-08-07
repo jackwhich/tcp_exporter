@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"tcp-exporter/collector" // 导入新指标包
 	"tcp-exporter/utils"
 )
 
@@ -56,6 +57,9 @@ func RunLeaderElection(
 		},
 	}
 	
+	// 记录选举开始时间
+	startTime := collector.RecordElectionStart(ctx)
+	
 	// 优化的选举配置
 	lec := leaderelection.LeaderElectionConfig{
 		Lock:            lock,
@@ -70,14 +74,25 @@ func RunLeaderElection(
 				
 				// 原子标记为领导者
 				atomic.StoreInt32(&leaderStatus, 1)
+				
+				// 记录选举成功和更新状态
+				collector.RecordElectionResult(traceCtx, startTime, true)
+				collector.UpdateLeaderStatus(traceCtx, true)
+				
 				utils.Log.Info(traceCtx, "成为领导者，负责生成快照")
 				leaderFunc(traceCtx) // 使用带有trace_id的上下文
 			},
 			OnStoppedLeading: func() {
-				// 原子标记为跟随者
-				atomic.StoreInt32(&leaderStatus, 0)
 				// 创建带有trace_id的新上下文
 				traceCtx := context.WithValue(context.Background(), utils.TraceIDKey, "election-event")
+				
+				// 原子标记为跟随者
+				atomic.StoreInt32(&leaderStatus, 0)
+				
+				// 记录选举结束和更新状态
+				collector.RecordElectionResult(traceCtx, startTime, false)
+				collector.UpdateLeaderStatus(traceCtx, false)
+				
 				utils.Log.Debug(traceCtx, "失去领导权")
 			},
 			OnNewLeader: func(identity string) {
