@@ -116,7 +116,7 @@ func handleTCPExtLine(lineBytes []byte, state *parseState) {
                         state.listenDrops = value
                 }
         }
-        utils.Log.Info(state.ctx, "处理TCP扩展数据行",
+        utils.Log.Debug(state.ctx, "处理TCP扩展数据行",
                 zap.Float64("SyncookiesSent", state.syncookiesSent),
                 zap.Float64("ListenOverflows", state.listenOverflows),
                 zap.Float64("ListenDrops", state.listenDrops))
@@ -274,7 +274,7 @@ func streamParseAndReport(r io.Reader, collector *TCPQueueCollector,
                }
         }
 
-        utils.Log.Info(ctx, "解析完成",
+        utils.Log.Debug(ctx, "解析完成",
                 zap.Int("totalLines", lineCount),
                 zap.Int("handledLines", handledCount),
                 zap.Float64("SyncookiesSent", state.syncookiesSent),
