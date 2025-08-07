@@ -24,3 +24,5 @@ node_modules/
 git_commit_msg.txt
 
 snapshot_enhancement_plan.md
+
+pod_snapshot.json
