@@ -21,6 +21,12 @@ func NewConsistentHashSharder(replicas int, nodes []int) *ConsistentHashSharder 
 		replicas: replicas,
 		circle:   make(map[uint32]int),
 	}
+	
+	// 确保至少有一个节点
+	if len(nodes) == 0 {
+		nodes = []int{0} // 默认节点
+	}
+	
 	ch.AddNodes(nodes)
 	return ch
 }

@@ -33,6 +33,14 @@ server:
 
   # 日志级别: debug | info | warn | error
   log_level: "debug"
-
+  
   # Gin运行模式: debug | release
   gin_mode: "release"
+
+# 裸机模式配置
+baremetal:
+  # 运行模式:
+  #   "kubernetes" - Kubernetes集群模式（默认）
+  #   "standalone" - 单机模式（支持裸机或Docker单节点）
+  mode: "standalone"
+

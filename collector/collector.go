@@ -89,6 +89,9 @@ type TCPQueueCollector struct {
         // 轻量级缓存
         lastCheck    time.Time      // 最后检查时间
         lastSnapshot *snapshot.Snapshot // 上次快照
+        
+        // 添加配置引用
+        cfg *config.Config
 }
 
 func TCPQueueCollectorFactory(
@@ -352,16 +355,6 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 	
 	utils.Log.Info(taskCtx, "开始收集 TCP 队列指标")
 	
-	// 获取副本信息
-	replicas, _ := strconv.Atoi(os.Getenv("REPLICA_COUNT"))
-	podName := os.Getenv("POD_NAME")
-	ordinal := getOrdinalFromPodName(podName)
-	
-	utils.Log.Info(taskCtx, "当前Pod分片信息",
-		zap.String("podName", podName),
-		zap.Int("ordinal", ordinal),
-		zap.Int("replicas", replicas))
-	
 	// 轻量级缓存检查
 	var snap *snapshot.Snapshot
 	fi, err := os.Stat(collector.cacheFilePath)
@@ -403,30 +396,53 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 			totalPods += len(pods)
 		}
 	}
-	cm := NewConcurrencyManager(totalPods, collector.maxConcurrent, collector.maxPodContainer)
-	// 创建一致性哈希分片器
-	nodes := make([]int, replicas)
-	for i := 0; i < replicas; i++ {
-		nodes[i] = i
-	}
-	sharder := NewConsistentHashSharder(100, nodes) // 100个虚拟节点
-
-	// 构建当前Pod需要处理的任务列表
-	var shardedTasks []podTask
+	
+	// 构建任务列表
 	tasks := collector.buildTasks(taskCtx, snap)
-	for _, task := range tasks {
-		// 使用命名空间、部署名和Pod名作为分片键
-		key := task.namespace + "/" + task.deploymentName + "/" + task.pod.Name
-		if sharder.GetShard(key) == ordinal {
-			shardedTasks = append(shardedTasks, task)
+	
+	// 根据运行模式选择分片策略
+	var shardedTasks []podTask
+	
+	if collector.cfg.Baremetal.Mode == "standalone" {
+		// 裸机模式：处理所有任务
+		shardedTasks = tasks
+		utils.Log.Info(taskCtx, "裸机模式运行，处理所有任务",
+			zap.Int("任务总数", len(shardedTasks)))
+	} else {
+		// Kubernetes模式：使用一致性哈希分片
+		replicas, _ := strconv.Atoi(os.Getenv("REPLICA_COUNT"))
+		podName := os.Getenv("POD_NAME")
+		ordinal := getOrdinalFromPodName(podName)
+		
+		utils.Log.Info(taskCtx, "当前Pod分片信息",
+			zap.String("podName", podName),
+			zap.Int("ordinal", ordinal),
+			zap.Int("replicas", replicas))
+		
+		// 创建一致性哈希分片器
+		nodes := make([]int, replicas)
+		for i := 0; i < replicas; i++ {
+			nodes[i] = i
 		}
+		sharder := NewConsistentHashSharder(100, nodes) // 100个虚拟节点
+
+		for _, task := range tasks {
+			// 使用命名空间、部署名和Pod名作为分片键
+			key := task.namespace + "/" + task.deploymentName + "/" + task.pod.Name
+			if sharder.GetShard(key) == ordinal {
+				shardedTasks = append(shardedTasks, task)
+			}
+		}
+		
+		utils.Log.Info(taskCtx, "一致性哈希分片结果",
+			zap.Int("分片任务数", len(shardedTasks)),
+			zap.Int("总任务数", len(tasks)),
+			zap.Int("副本数", replicas),
+			zap.Int("当前副本序号", ordinal))
 	}
 	
-	utils.Log.Info(taskCtx, "一致性哈希分片结果",
-		zap.Int("分片任务数", len(shardedTasks)),
-		zap.Int("总任务数", len(tasks)),
-		zap.Int("副本数", replicas),
-		zap.Int("当前副本序号", ordinal))
+	// 创建并发管理器
+	cm := NewConcurrencyManager(len(shardedTasks), collector.maxConcurrent, collector.maxPodContainer)
 		
 	// 调试：记录前10个分片任务
 	for i, task := range shardedTasks {

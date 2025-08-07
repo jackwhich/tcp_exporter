@@ -32,6 +32,11 @@ type Config struct {
 		LogLevel string `yaml:"log_level"` // 日志级别
 		GinMode  string `yaml:"gin_mode"`  // Gin运行模式
 	} `yaml:"server"` // 服务相关配置
+	
+	// 添加裸机模式配置
+	Baremetal struct {
+		Mode   string `yaml:"mode"`   // 运行模式: "kubernetes" 或 "standalone"
+	} `yaml:"baremetal"`
 }
 
 // GetLogLevel 实现utils.LoggerConfig接口
