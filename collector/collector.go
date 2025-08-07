@@ -379,7 +379,7 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 		utils.Log.Info(taskCtx, "裸机模式运行，处理所有任务",
 			zap.Int("任务总数", len(shardedTasks)))
 	} else {
-		// Kubernetes模式：使用一致性哈希分片
+		// Kubernetes模式：使用静态范围分片
 		replicas, _ := strconv.Atoi(os.Getenv("REPLICA_COUNT"))
 		podName := os.Getenv("POD_NAME")
 		ordinal := getOrdinalFromPodName(podName)
@@ -389,26 +389,18 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 			zap.Int("ordinal", ordinal),
 			zap.Int("replicas", replicas))
 		
-		// 创建一致性哈希分片器
-		nodes := make([]int, replicas)
-		for i := 0; i < replicas; i++ {
-			nodes[i] = i
-		}
-		sharder := NewConsistentHashSharder(100, nodes) // 100个虚拟节点
-
-		for _, task := range tasks {
-			// 使用命名空间、部署名和Pod名作为分片键
-			key := task.namespace + "/" + task.deploymentName + "/" + task.podName
-			if sharder.GetShard(key) == ordinal {
-				shardedTasks = append(shardedTasks, task)
-			}
-		}
+		// 静态范围分片
+		start := (len(tasks) * ordinal) / replicas
+		end := (len(tasks) * (ordinal + 1)) / replicas
+		shardedTasks = tasks[start:end]
 		
-		utils.Log.Info(taskCtx, "一致性哈希分片结果",
+		utils.Log.Info(taskCtx, "静态范围分片结果",
 			zap.Int("分片任务数", len(shardedTasks)),
 			zap.Int("总任务数", len(tasks)),
 			zap.Int("副本数", replicas),
-			zap.Int("当前副本序号", ordinal))
+			zap.Int("当前副本序号", ordinal),
+			zap.Int("起始索引", start),
+			zap.Int("结束索引", end-1))
 	}
 	
 	// 创建并发管理器
