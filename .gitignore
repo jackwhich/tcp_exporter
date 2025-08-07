@@ -19,3 +19,6 @@ node_modules/
 # 环境文件
 .env
 .env.local
+
+# Git提交消息文件
+git_commit_msg.txt

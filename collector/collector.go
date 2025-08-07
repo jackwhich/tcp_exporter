@@ -97,6 +97,7 @@ type TCPQueueCollector struct {
 func TCPQueueCollectorFactory(
         clientset *kubernetes.Clientset,
         restConfig *rest.Config,
+        cfg *config.Config, // 添加配置参数
         cacheFilePath string,
         maxConcurrent int,
         maxPodContainer int,
@@ -108,6 +109,7 @@ func TCPQueueCollectorFactory(
         return &TCPQueueCollector{
                 clientset:        clientset,
                 restConfig:       restConfig,
+                cfg:              cfg, // 初始化配置
                 cacheFilePath:    cacheFilePath,
                 maxConcurrent:    maxConcurrent,
                 maxPodContainer:  maxPodContainer,
@@ -481,6 +483,7 @@ func RegisterCollector(clientset *kubernetes.Clientset, restConfig *rest.Config,
         collector := TCPQueueCollectorFactory(
                 clientset,
                 restConfig,
+                cfg, // 添加配置引用
                 cfg.Kubernetes.CacheFilePath,
                 cfg.Kubernetes.MaxConcurrent,
                 cfg.Kubernetes.MaxPodContainer,
