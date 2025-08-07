@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
 	"runtime/debug"
+	"syscall"
+	"time"
 	
 	"tcp-exporter/client"
 	"tcp-exporter/config"
@@ -66,5 +69,23 @@ func main() {
 
 	utils.Log.Info(context.Background(), "启动HTTP服务器",
 		zap.String("address", ":"+cfg.Server.Port))
-	service.RunHTTPServer(cfg)
+	srv := service.RunHTTPServer(cfg)
+	
+	// 初始化优雅关闭处理器
+	shutdown := service.NewShutdownHandler(srv)
+	
+	// 设置信号监听
+	stopCh := make(chan os.Signal, 1)
+	signal.Notify(stopCh, syscall.SIGINT, syscall.SIGTERM)
+	
+	// 等待终止信号
+	<-stopCh
+	utils.Log.Info(context.Background(), "接收到终止信号，开始优雅关闭")
+	
+	// 执行优雅关闭（30秒超时）
+	if err := shutdown.Shutdown(30 * time.Second); err != nil {
+		utils.Log.Error(context.Background(), "优雅关闭失败", zap.Error(err))
+	} else {
+		utils.Log.Info(context.Background(), "服务已优雅退出")
+	}
 }

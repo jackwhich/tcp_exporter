@@ -4,8 +4,9 @@ package service
 
 import (
 	"context"
+	"net/http"
 	"time"
-
+	
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -14,7 +15,7 @@ import (
 	"tcp-exporter/utils"
 )
 
-func RunHTTPServer(cfg *config.Config) {
+func RunHTTPServer(cfg *config.Config) *http.Server {
 	gin.SetMode(cfg.Server.GinMode)
 	router := gin.New()
 
@@ -65,17 +66,28 @@ func RunHTTPServer(cfg *config.Config) {
 
 	// 创建启动日志的上下文
 	startCtx := context.Background()
-	utils.Log.Info(startCtx, "启动HTTP服务器",
+	utils.Log.Info(startCtx, "创建HTTP服务器",
 		zap.String("address", ":"+cfg.Server.Port),
 		zap.String("gin_mode", cfg.Server.GinMode),
 		zap.String("log_level", cfg.Server.LogLevel))
 
-	// 启动服务器（阻塞操作）
-	err := router.Run(":" + cfg.Server.Port)
-	if err != nil {
-		utils.Log.Fatal(context.Background(), "HTTP服务启动失败",
-			zap.Error(err))
-	} else {
-		utils.Log.Info(context.Background(), "HTTP服务已停止")
+	// 创建HTTP服务器实例
+	srv := &http.Server{
+		Addr:    ":" + cfg.Server.Port,
+		Handler: router,
 	}
+
+	// 非阻塞启动服务
+	go func() {
+		utils.Log.Info(context.Background(), "启动HTTP服务器",
+			zap.String("address", srv.Addr))
+		
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			utils.Log.Fatal(context.Background(), "HTTP服务启动失败", zap.Error(err))
+		} else {
+			utils.Log.Info(context.Background(), "HTTP服务已停止")
+		}
+	}()
+
+	return srv
 }
