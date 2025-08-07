@@ -89,7 +89,7 @@ func (cm *ConcurrencyManager) ReleaseGlobal(ctx context.Context) {
 		capacity: capacity,
 	})
 
-	utils.Log.Info(ctx, "已释放全局信号量",
+	utils.Log.Debug(ctx, "已释放全局信号量",
 		zap.Int("used", used),
 		zap.Int("capacity", capacity))
 }
@@ -110,7 +110,7 @@ func (cm *ConcurrencyManager) AcquireDep(ctx context.Context, namespace, deploym
 	}
 
 	// 慢速路径：创建新信号量
-	utils.Log.Info(ctx, "为部署创建新信号量",
+	utils.Log.Debug(ctx, "为部署创建新信号量",
 		zap.String("命名空间", namespace),
 		zap.String("部署名", deployment),
 		zap.Int("limit", limit))
@@ -119,12 +119,12 @@ func (cm *ConcurrencyManager) AcquireDep(ctx context.Context, namespace, deploym
 
 	if loaded {
 		// 其他goroutine已经创建，使用现有的
-		utils.Log.Info(ctx, "其他goroutine已创建信号量，关闭新创建信号量",
+		utils.Log.Debug(ctx, "其他goroutine已创建信号量，关闭新创建信号量",
 			zap.String("命名空间", namespace),
 			zap.String("部署名", deployment))
 		close(newSem) // 避免内存泄漏
 	} else {
-		utils.Log.Info(ctx, "成功创建新信号量",
+		utils.Log.Debug(ctx, "成功创建新信号量",
 			zap.String("命名空间", namespace),
 			zap.String("部署名", deployment),
 			zap.Int("capacity", cap(newSem)))
@@ -154,7 +154,7 @@ func (cm *ConcurrencyManager) ReleaseDep(ctx context.Context, namespace, deploym
 		used := len(semChan)
 		capacity := cap(semChan)
 
-		utils.Log.Info(ctx, "已释放部署信号量",
+		utils.Log.Debug(ctx, "已释放部署信号量",
 			zap.String("命名空间", namespace),
 			zap.String("部署名", deployment),
 			zap.Int("used", used),
@@ -267,7 +267,7 @@ func (sm *ShardingManager) shardByDeployment(ctx context.Context, tasks []podTas
 			hash.Write([]byte(key))
 			hashValue = int(hash.Sum32())
 			hashCache[key] = hashValue
-			utils.Log.Trace(ctx, "计算Deployment哈希",
+			utils.Log.Debug(ctx, "计算Deployment哈希",
 				zap.String("key", key),
 				zap.Int("hash", hashValue))
 		}
@@ -278,7 +278,7 @@ func (sm *ShardingManager) shardByDeployment(ctx context.Context, tasks []podTas
 			result = append(result, task)
 		}
 
-		utils.Log.Trace(ctx, "任务分配决策",
+		utils.Log.Info(ctx, "任务分配决策",
 			zap.String("namespace", task.namespace),
 			zap.String("deployment", task.deploymentName),
 			zap.String("pod", task.podName),
