@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"tcp-exporter/utils"
+	"tcp-exporter/collector"
 )
 
 // leaderStatus 用于原子操作跟踪领导者状态
@@ -67,6 +68,8 @@ func RunLeaderElection(
 			OnStartedLeading: func(ctx context.Context) {
 				// 创建带有trace_id的新上下文
 				traceCtx := context.WithValue(ctx, utils.TraceIDKey, "election-event")
+				// 记录选举成功指标
+				collector.RecordElectionSuccess(traceCtx, podName)
 				
 				// 原子标记为领导者
 				atomic.StoreInt32(&leaderStatus, 1)
@@ -74,6 +77,9 @@ func RunLeaderElection(
 				leaderFunc(traceCtx) // 使用带有trace_id的上下文
 			},
 			OnStoppedLeading: func() {
+				// 记录领导结束指标
+				collector.RecordLeadershipEnd(podName)
+				
 				// 原子标记为跟随者
 				atomic.StoreInt32(&leaderStatus, 0)
 				// 创建带有trace_id的新上下文
