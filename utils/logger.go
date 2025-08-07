@@ -6,10 +6,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore" 
+	"go.uber.org/zap/zapcore"
 )
 
 // LoggerConfig 定义日志配置接口
@@ -116,4 +118,22 @@ func (l *Logger) Error(ctx context.Context, msg string, fields ...zap.Field) {
 func (l *Logger) Fatal(ctx context.Context, msg string, fields ...zap.Field) {
 	fields = append(fields, zap.String("trace_id", getTraceID(ctx)))
 	l.Logger.Fatal(msg, fields...)
+}
+
+// GetPodName 获取当前Pod的名称标识
+func GetPodName() string {
+	podName := os.Getenv("POD_NAME")
+	if podName == "" {
+		// 非容器环境回退处理
+		hostname, _ := os.Hostname()
+		if hostname == "" {
+			// 生成基于时间戳和进程ID的唯一标识
+			timestamp := time.Now().UnixNano()
+			pid := os.Getpid()
+			podName = "local-" + strconv.FormatInt(timestamp, 10) + "-" + strconv.Itoa(pid)
+		} else {
+			podName = hostname
+		}
+	}
+	return podName
 }

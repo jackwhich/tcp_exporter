@@ -71,8 +71,14 @@ func RunLeaderElection(
 				// 记录选举成功指标
 				collector.RecordElectionSuccess(traceCtx, podName)
 				
+				// 设置初始状态（所有实例从非leader开始）
+				collector.SetLeaderStatus(podName, 0)
 				// 原子标记为领导者
 				atomic.StoreInt32(&leaderStatus, 1)
+				// 更新指标状态为leader
+				collector.SetLeaderStatus(podName, 1)
+				// 启动任期更新
+				collector.StartTenureUpdate(podName)
 				utils.Log.Info(traceCtx, "成为领导者，负责生成快照")
 				leaderFunc(traceCtx) // 使用带有trace_id的上下文
 			},
@@ -82,6 +88,10 @@ func RunLeaderElection(
 				
 				// 原子标记为跟随者
 				atomic.StoreInt32(&leaderStatus, 0)
+				// 设置指标状态
+				collector.SetLeaderStatus(podName, 0)
+				// 停止任期更新
+				collector.StopTenureUpdate()
 				// 创建带有trace_id的新上下文
 				traceCtx := context.WithValue(context.Background(), utils.TraceIDKey, "election-event")
 				utils.Log.Debug(traceCtx, "失去领导权")
