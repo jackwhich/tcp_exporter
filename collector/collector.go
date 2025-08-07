@@ -58,8 +58,9 @@ func getOrdinalFromPodName(podName string) int {
 type podTask struct {
 	deploymentName string
 	namespace     string
-	pod           *corev1.Pod
+	podName       string
 	containerName string
+	podIP         string
 }
 
 func buildIgnoreSet(ignoreContainers []string) map[string]struct{} {
@@ -167,67 +168,35 @@ func (collector *TCPQueueCollector) buildTasks(ctx context.Context, snap *snapsh
 	tasks := make([]podTask, 0, total)
 
 	for nsName, nsData := range snap.Namespaces {
-		for depName, podNames := range nsData.Deployments {
+		for depName, podInfos := range nsData.Deployments {
 			utils.Log.Debug(ctx, "处理 Deployment",
 				zap.String("namespace", nsName),
 				zap.String("deployment", depName),
-				zap.Int("podCount", len(podNames)))
+				zap.Int("podCount", len(podInfos)))
 			utils.Log.Trace(ctx, "Deployment 详情",
-				zap.Strings("pods", podNames))
+				zap.Any("pods", podInfos))
 
-			for _, podName := range podNames {
-				pObj, err := collector.podLister.Pods(nsName).Get(podName)
-				if err != nil {
-					utils.Log.Warn(ctx, "无法获取 Pod 对象，跳过",
-						zap.String("namespace", nsName),
-						zap.String("pod", podName),
-						zap.Error(err))
-					continue
-				}
-
-				var containerName string
-				containerCount := 0
-				ignoredContainers := 0
-				for _, cs := range pObj.Status.ContainerStatuses {
-					if _, skip := collector.ignoreSet[cs.Name]; skip {
-						utils.Log.Trace(ctx, "跳过忽略容器",
-							zap.String("container", cs.Name))
-						ignoredContainers++
-						continue
+			for _, podInfo := range podInfos {
+				for _, container := range podInfo.Containers {
+					if container.State == "running" {
+						tasks = append(tasks, podTask{
+							deploymentName: depName,
+							namespace:     nsName,
+							podName:       podInfo.PodName,
+							containerName: container.Name,
+							podIP:         podInfo.IP,
+						})
+						utils.Log.Debug(ctx, "为 Pod 选择容器",
+							zap.String("namespace", nsName),
+							zap.String("pod", podInfo.PodName),
+							zap.String("container", container.Name))
+					} else {
+						utils.Log.Trace(ctx, "跳过非运行状态容器",
+							zap.String("pod", podInfo.PodName),
+							zap.String("container", container.Name),
+							zap.String("state", container.State))
 					}
-					if cs.State.Running != nil {
-						containerName = cs.Name
-						containerCount++
-						utils.Log.Trace(ctx, "找到运行中容器",
-							zap.String("container", cs.Name))
-						break
-					}
-					utils.Log.Trace(ctx, "容器非运行状态",
-						zap.String("container", cs.Name),
-						zap.Any("state", cs.State))
 				}
-
-				if containerName == "" {
-					utils.Log.Info(ctx, "无可用容器，跳过",
-						zap.String("namespace", nsName),
-						zap.String("pod", podName),
-						zap.Int("totalContainers", len(pObj.Status.ContainerStatuses)),
-						zap.Int("ignoredContainers", ignoredContainers),
-						zap.Int("runningContainers", containerCount))
-					continue
-				}
-
-				utils.Log.Debug(ctx, "为 Pod 选择容器",
-					zap.String("namespace", nsName),
-					zap.String("pod", podName),
-					zap.String("container", containerName))
-
-				tasks = append(tasks, podTask{
-					deploymentName: depName,
-					namespace:     nsName,
-					pod:           pObj,
-					containerName: containerName,
-				})
 			}
 		}
 	}
@@ -236,7 +205,7 @@ func (collector *TCPQueueCollector) buildTasks(ctx context.Context, snap *snapsh
 		if tasks[i].namespace != tasks[j].namespace {
 			return tasks[i].namespace < tasks[j].namespace
 		}
-		return tasks[i].pod.Name < tasks[j].pod.Name
+		return tasks[i].podName < tasks[j].podName
 	})
 
 	return tasks
@@ -245,7 +214,7 @@ func (collector *TCPQueueCollector) buildTasks(ctx context.Context, snap *snapsh
 func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t podTask, metricChan chan<- prometheus.Metric, cm *ConcurrencyManager) {
 	utils.Log.Debug(ctx, "开始处理任务",
 		zap.String("namespace", t.namespace),
-		zap.String("pod", t.pod.Name),
+		zap.String("pod", t.podName),
 		zap.String("container", t.containerName))
 
 	// 并发控制日志
@@ -266,12 +235,11 @@ func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t pod
 		cm.ReleaseDep(ctx, t.namespace, t.deploymentName)
 	}()
 
-	ip := t.pod.Status.PodIP
 	utils.Log.Debug(ctx, "采集指标",
 		zap.String("namespace", t.namespace),
-		zap.String("pod", t.pod.Name),
+		zap.String("pod", t.podName),
 		zap.String("container", t.containerName),
-		zap.String("pod_ip", ip))
+		zap.String("pod_ip", t.podIP))
 
 	execCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -279,7 +247,7 @@ func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t pod
 	req := collector.clientset.CoreV1().RESTClient().
 		Post().
 		Resource("pods").
-		Name(t.pod.Name).
+		Name(t.podName).
 		Namespace(t.namespace).
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
@@ -294,7 +262,7 @@ func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t pod
 	if err != nil {
 		utils.Log.Error(ctx, "创建远程执行器失败",
 			zap.String("namespace", t.namespace),
-			zap.String("pod", t.pod.Name),
+			zap.String("pod", t.podName),
 			zap.Error(err))
 		return
 	}
@@ -304,7 +272,7 @@ func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t pod
 		defer pipeWriter.Close()
 		for i := 0; i < 2; i++ {
 			utils.Log.Debug(ctx, "执行命令尝试",
-				zap.String("pod", t.pod.Name),
+				zap.String("pod", t.podName),
 				zap.String("namespace", t.namespace),
 				zap.String("container", t.containerName),
 				zap.Int("attempt", i+1))
@@ -315,14 +283,14 @@ func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t pod
 			})
 			if err == nil {
 				utils.Log.Debug(ctx, "命令执行成功",
-					zap.String("pod", t.pod.Name),
+					zap.String("pod", t.podName),
 					zap.String("namespace", t.namespace),
 					zap.String("container", t.containerName))
 				return
 			}
 			if strings.Contains(err.Error(), "dial tcp") {
 				utils.Log.Warn(ctx, "执行命令网络超时，准备重试",
-					zap.String("pod", t.pod.Name),
+					zap.String("pod", t.podName),
 					zap.String("namespace", t.namespace),
 					zap.String("container", t.containerName),
 					zap.Error(err),
@@ -331,7 +299,7 @@ func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t pod
 				continue
 			}
 			utils.Log.Error(ctx, "执行命令失败",
-				zap.String("pod", t.pod.Name),
+				zap.String("pod", t.podName),
 				zap.String("namespace", t.namespace),
 				zap.String("container", t.containerName),
 				zap.Error(err),
@@ -339,14 +307,14 @@ func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t pod
 			return
 		}
 		utils.Log.Error(ctx, "命令执行重试次数用尽",
-			zap.String("pod", t.pod.Name),
+			zap.String("pod", t.podName),
 			zap.String("namespace", t.namespace),
 			zap.String("container", t.containerName))
 	}()
-	streamParseAndReport(pipeReader, collector, metricChan, t.namespace, t.pod.Name, ip, t.containerName)
+	streamParseAndReport(pipeReader, collector, metricChan, t.namespace, t.podName, t.podIP, t.containerName)
 	utils.Log.Debug(ctx, "任务处理完成",
 		zap.String("namespace", t.namespace),
-		zap.String("pod", t.pod.Name),
+		zap.String("pod", t.podName),
 		zap.String("container", t.containerName))
 }
 
@@ -430,7 +398,7 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 
 		for _, task := range tasks {
 			// 使用命名空间、部署名和Pod名作为分片键
-			key := task.namespace + "/" + task.deploymentName + "/" + task.pod.Name
+			key := task.namespace + "/" + task.deploymentName + "/" + task.podName
 			if sharder.GetShard(key) == ordinal {
 				shardedTasks = append(shardedTasks, task)
 			}
@@ -450,8 +418,8 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 	for i, task := range shardedTasks {
 		if i < 10 {
 			utils.Log.Debug(taskCtx, "分片任务详情",
-				zap.String("pod", task.pod.Name),
-				zap.String("namespace", task.pod.Namespace),
+				zap.String("pod", task.podName),
+				zap.String("namespace", task.namespace),
 				zap.String("container", task.containerName))
 		}
 	}

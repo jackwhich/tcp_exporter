@@ -19,6 +19,19 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// ContainerStatus 表示容器的状态
+type ContainerStatus struct {
+	Name  string `json:"name"`
+	State string `json:"state"` // "running", "waiting", "terminated"
+}
+
+// PodInfo 表示Pod的详细信息
+type PodInfo struct {
+	PodName    string            `json:"pod_name"`
+	IP         string            `json:"ip,omitempty"`
+	Containers []ContainerStatus `json:"containers"`
+}
+
 // Snapshot 表示整个集群的快照
 type Snapshot struct {
 	Namespaces map[string]NamespaceSnapshot `json:"namespaces"`
@@ -26,7 +39,7 @@ type Snapshot struct {
 
 // NamespaceSnapshot 表示单个命名空间的快照
 type NamespaceSnapshot struct {
-	Deployments map[string][]string `json:"deployments"`
+	Deployments map[string][]PodInfo `json:"deployments"`
 }
 
 // SnapshotManager 管理Kubernetes快照的创建和持久化
@@ -75,6 +88,17 @@ func LoadSnapshot(ctx context.Context, path string) (*Snapshot, error) {
 	return &snap, nil
 }
 
+// shouldIgnoreContainer 检查容器是否在忽略列表中
+func (sm *SnapshotManager) shouldIgnoreContainer(name string) bool {
+	ignoreContainers := sm.cfg.Kubernetes.IgnoreContainers
+	for _, ignore := range ignoreContainers {
+		if name == ignore {
+			return true
+		}
+	}
+	return false
+}
+
 // ToFile 将当前快照写入文件（添加context参数）
 func (sm *SnapshotManager) ToFile(ctx context.Context) error {
 	totalDeployments := 0
@@ -88,7 +112,7 @@ func (sm *SnapshotManager) ToFile(ctx context.Context) error {
 		utils.Log.Trace(ctx, "处理命名空间",
 			zap.String("namespace", ns))
 		nsSnapshot := NamespaceSnapshot{
-			Deployments: make(map[string][]string),
+			Deployments: make(map[string][]PodInfo),
 		}
 
 		deps, err := sm.deploymentLister.Deployments(ns).List(labels.Everything())
@@ -113,16 +137,45 @@ func (sm *SnapshotManager) ToFile(ctx context.Context) error {
 				continue
 			}
 
-			var podNames []string
-			for _, p := range pods {
-				podNames = append(podNames, p.Name)
+			var podInfos []PodInfo
+			for _, pod := range pods {
+				// 收集容器状态
+				containers := []ContainerStatus{}
+				for _, cs := range pod.Status.ContainerStatuses {
+					// 过滤忽略容器
+					if sm.shouldIgnoreContainer(cs.Name) {
+						continue
+					}
+					
+					// 确定容器状态
+					state := "unknown"
+					if cs.State.Running != nil {
+						state = "running"
+					} else if cs.State.Waiting != nil {
+						state = "waiting"
+					} else if cs.State.Terminated != nil {
+						state = "terminated"
+					}
+					
+					containers = append(containers, ContainerStatus{
+						Name:  cs.Name,
+						State: state,
+					})
+				}
+				
+				// 添加到Pod信息
+				podInfos = append(podInfos, PodInfo{
+					PodName:    pod.Name,
+					IP:         pod.Status.PodIP,
+					Containers: containers,
+				})
 				totalPods++
 			}
 
-			nsSnapshot.Deployments[dep.Name] = podNames
+			nsSnapshot.Deployments[dep.Name] = podInfos
 			utils.Log.Trace(ctx, "为部署添加Pod",
 				zap.String("deployment", dep.Name),
-				zap.Int("podCount", len(podNames)))
+				zap.Int("podCount", len(podInfos)))
 		}
 
 		snapshot.Namespaces[ns] = nsSnapshot

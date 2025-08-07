@@ -1,0 +1,418 @@
+{
+    "namespaces": {
+      "ebpay": {
+        "deployments": {
+          "eb-help": [
+            "eb-help-87cb4b6bc-dqfgt"
+          ],
+          "eb-help-net": [
+            "eb-help-net-57cb4fd7cd-bf755"
+          ],
+          "go-warning-service": [
+            "go-warning-service-7bf488c5cb-442jp",
+            "go-warning-service-7bf488c5cb-rp4zs"
+          ],
+          "nginx-deployment": null,
+          "prod-accounting-service": [
+            "prod-accounting-service-db9457c57-88jh7",
+            "prod-accounting-service-db9457c57-7688c"
+          ],
+          "prod-admin-export": [
+            "prod-admin-export-5d54f54d6c-vtngj",
+            "prod-admin-export-5d54f54d6c-lr4f4",
+            "prod-admin-export-5d54f54d6c-nl6lr",
+            "prod-admin-export-5d54f54d6c-vp9pt"
+          ],
+          "prod-admin-gateway": [
+            "prod-admin-gateway-57bcfcc989-4wxnx",
+            "prod-admin-gateway-57bcfcc989-rp9nz",
+            "prod-admin-gateway-57bcfcc989-lp2fh",
+            "prod-admin-gateway-57bcfcc989-tbg8d",
+            "prod-admin-gateway-57bcfcc989-5rf6x",
+            "prod-admin-gateway-57bcfcc989-gj5ns",
+            "prod-admin-gateway-57bcfcc989-sxzzj",
+            "prod-admin-gateway-57bcfcc989-xptv7"
+          ],
+          "prod-admin-server-task": [
+            "prod-admin-server-task-5df6dcc667-49d96",
+            "prod-admin-server-task-5df6dcc667-ckrt4",
+            "prod-admin-server-task-5df6dcc667-qmggk",
+            "prod-admin-server-task-5df6dcc667-78wjk"
+          ],
+          "prod-adminmanager": [
+            "prod-adminmanager-7dd9c485dc-fvpj9",
+            "prod-adminmanager-7dd9c485dc-q6c7j",
+            "prod-adminmanager-7dd9c485dc-r66wn",
+            "prod-adminmanager-7dd9c485dc-vvqnh",
+            "prod-adminmanager-7dd9c485dc-glng8",
+            "prod-adminmanager-7dd9c485dc-pgwmj",
+            "prod-adminmanager-7dd9c485dc-6x6jl",
+            "prod-adminmanager-7dd9c485dc-bdtbr"
+          ],
+          "prod-alarm-service": [
+            "prod-alarm-service-69589bbb4-gqnfn",
+            "prod-alarm-service-69589bbb4-lfvbt"
+          ],
+          "prod-app-gateway": [
+            "prod-app-gateway-89564766d-2mpt9",
+            "prod-app-gateway-89564766d-fq4b2",
+            "prod-app-gateway-89564766d-njhf8",
+            "prod-app-gateway-89564766d-jbgwz",
+            "prod-app-gateway-89564766d-8sgs9",
+            "prod-app-gateway-89564766d-f4hkr",
+            "prod-app-gateway-89564766d-tcw4g",
+            "prod-app-gateway-89564766d-ngbkh",
+            "prod-app-gateway-89564766d-pwwkk",
+            "prod-app-gateway-89564766d-fh6r9",
+            "prod-app-gateway-89564766d-kl2zn",
+            "prod-app-gateway-89564766d-k97fm",
+            "prod-app-gateway-89564766d-gzthr",
+            "prod-app-gateway-89564766d-hqzkk",
+            "prod-app-gateway-89564766d-w66ld",
+            "prod-app-gateway-89564766d-zrgfh",
+            "prod-app-gateway-89564766d-22rlp",
+            "prod-app-gateway-89564766d-tdmmc",
+            "prod-app-gateway-89564766d-57s7v",
+            "prod-app-gateway-89564766d-9xqws"
+          ],
+          "prod-asset-service": null,
+          "prod-asset-service-new": [
+            "prod-asset-service-new-687c6644c8-89ch9",
+            "prod-asset-service-new-687c6644c8-c7jn5",
+            "prod-asset-service-new-687c6644c8-lvjbw",
+            "prod-asset-service-new-687c6644c8-jmgmq",
+            "prod-asset-service-new-687c6644c8-ldlb2",
+            "prod-asset-service-new-687c6644c8-br4h2",
+            "prod-asset-service-new-687c6644c8-glvtz",
+            "prod-asset-service-new-687c6644c8-nzrss",
+            "prod-asset-service-new-687c6644c8-lcms8",
+            "prod-asset-service-new-687c6644c8-bjxmp",
+            "prod-asset-service-new-687c6644c8-jvmnw",
+            "prod-asset-service-new-687c6644c8-mfmhd",
+            "prod-asset-service-new-687c6644c8-xxt82",
+            "prod-asset-service-new-687c6644c8-hst28",
+            "prod-asset-service-new-687c6644c8-qdtm2",
+            "prod-asset-service-new-687c6644c8-zkdpm",
+            "prod-asset-service-new-687c6644c8-6cf67",
+            "prod-asset-service-new-687c6644c8-sb4bj",
+            "prod-asset-service-new-687c6644c8-lhwnj",
+            "prod-asset-service-new-687c6644c8-vklfd"
+          ],
+          "prod-b2b-gateway": [
+            "prod-b2b-gateway-88578745b-q82fr",
+            "prod-b2b-gateway-88578745b-md7r9"
+          ],
+          "prod-b2bmanager": [
+            "prod-b2bmanager-756d995664-lqc45",
+            "prod-b2bmanager-756d995664-x2qn2",
+            "prod-b2bmanager-756d995664-2bcc9",
+            "prod-b2bmanager-756d995664-r9d2f"
+          ],
+          "prod-b2bmanager-export": [
+            "prod-b2bmanager-export-565bd98d5c-v5dr6",
+            "prod-b2bmanager-export-565bd98d5c-pgjcx"
+          ],
+          "prod-blockchain-external-wallet-service": [
+            "prod-blockchain-external-wallet-service-57dd4b7949-v72cn",
+            "prod-blockchain-external-wallet-service-57dd4b7949-pcbtn"
+          ],
+          "prod-chain-cmn-service": [
+            "prod-chain-cmn-service-9d4f7d969-q9c4j",
+            "prod-chain-cmn-service-9d4f7d969-l494f"
+          ],
+          "prod-common-service": [
+            "prod-common-service-77cb8f96c9-96r5t",
+            "prod-common-service-77cb8f96c9-gxzq5",
+            "prod-common-service-77cb8f96c9-gwhqw",
+            "prod-common-service-77cb8f96c9-vvwl7"
+          ],
+          "prod-config-service": [
+            "prod-config-service-769996c8c9-98dlr",
+            "prod-config-service-769996c8c9-8p24f",
+            "prod-config-service-769996c8c9-bgd22",
+            "prod-config-service-769996c8c9-79f26",
+            "prod-config-service-769996c8c9-wbc2j",
+            "prod-config-service-769996c8c9-clbqs",
+            "prod-config-service-769996c8c9-6dhqp",
+            "prod-config-service-769996c8c9-2w8l5"
+          ],
+          "prod-datacenter-service": null,
+          "prod-deposit-withdraw-service": [
+            "prod-deposit-withdraw-service-78b95f955-lk8j6",
+            "prod-deposit-withdraw-service-78b95f955-pjgf8",
+            "prod-deposit-withdraw-service-78b95f955-8zmfr",
+            "prod-deposit-withdraw-service-78b95f955-bhlvn",
+            "prod-deposit-withdraw-service-78b95f955-vr44x",
+            "prod-deposit-withdraw-service-78b95f955-x2gxg",
+            "prod-deposit-withdraw-service-78b95f955-rbj4q",
+            "prod-deposit-withdraw-service-78b95f955-z9j9k"
+          ],
+          "prod-desensitive-log": [
+            "prod-desensitive-log-8695968d7b-ms2kb",
+            "prod-desensitive-log-8695968d7b-wzlk5",
+            "prod-desensitive-log-8695968d7b-4zxjw",
+            "prod-desensitive-log-8695968d7b-cn2bb"
+          ],
+          "prod-eb-web-api": [
+            "prod-eb-web-api-6bd4d59964-549pz",
+            "prod-eb-web-api-6bd4d59964-8fblx",
+            "prod-eb-web-api-6bd4d59964-jzbd9",
+            "prod-eb-web-api-6bd4d59964-rjs4c",
+            "prod-eb-web-api-6bd4d59964-wmbfr",
+            "prod-eb-web-api-6bd4d59964-v7nw4",
+            "prod-eb-web-api-6bd4d59964-qhvtd",
+            "prod-eb-web-api-6bd4d59964-75ltg",
+            "prod-eb-web-api-6bd4d59964-z5spr",
+            "prod-eb-web-api-6bd4d59964-s5rp8",
+            "prod-eb-web-api-6bd4d59964-dg4rn",
+            "prod-eb-web-api-6bd4d59964-r7grt",
+            "prod-eb-web-api-6bd4d59964-bnfkd",
+            "prod-eb-web-api-6bd4d59964-jm8fd",
+            "prod-eb-web-api-6bd4d59964-48tw4",
+            "prod-eb-web-api-6bd4d59964-8vnkw",
+            "prod-eb-web-api-6bd4d59964-qcr4z",
+            "prod-eb-web-api-6bd4d59964-5x27d",
+            "prod-eb-web-api-6bd4d59964-746xp",
+            "prod-eb-web-api-6bd4d59964-2rd92"
+          ],
+          "prod-ebpay-admin-system": [
+            "prod-ebpay-admin-system-76f4b8658b-l99jr",
+            "prod-ebpay-admin-system-76f4b8658b-wbp7l",
+            "prod-ebpay-admin-system-76f4b8658b-xd76k",
+            "prod-ebpay-admin-system-76f4b8658b-p65cz"
+          ],
+          "prod-ebpay-business": [
+            "prod-ebpay-business-6f66994b56-v587b",
+            "prod-ebpay-business-6f66994b56-9z4xq",
+            "prod-ebpay-business-6f66994b56-dxl9p",
+            "prod-ebpay-business-6f66994b56-rfjhd"
+          ],
+          "prod-ebpay-business-admin": [
+            "prod-ebpay-business-admin-55c466f88f-hbx4t",
+            "prod-ebpay-business-admin-55c466f88f-kbldf",
+            "prod-ebpay-business-admin-55c466f88f-zkj4c",
+            "prod-ebpay-business-admin-55c466f88f-57g7t"
+          ],
+          "prod-ebpay-business-web": [
+            "prod-ebpay-business-web-9594df884-dblxm",
+            "prod-ebpay-business-web-9594df884-lpht5",
+            "prod-ebpay-business-web-9594df884-cbgr2",
+            "prod-ebpay-business-web-9594df884-gdcvn"
+          ],
+          "prod-ebpay-customerservice-www-h5": [
+            "prod-ebpay-customerservice-www-h5-5b7fbf9579-w6l68",
+            "prod-ebpay-customerservice-www-h5-5b7fbf9579-kcmxb",
+            "prod-ebpay-customerservice-www-h5-5b7fbf9579-bn5dd",
+            "prod-ebpay-customerservice-www-h5-5b7fbf9579-hn4xj"
+          ],
+          "prod-ebpay-eb-core-api": null,
+          "prod-ebpay-h5-pay": [
+            "prod-ebpay-h5-pay-58fcc8bc77-nxcz8",
+            "prod-ebpay-h5-pay-58fcc8bc77-2vw2q",
+            "prod-ebpay-h5-pay-58fcc8bc77-wvsjc",
+            "prod-ebpay-h5-pay-58fcc8bc77-g84vj"
+          ],
+          "prod-ebpay-h5-pay-v2": [
+            "prod-ebpay-h5-pay-v2-6554876594-vmpsp",
+            "prod-ebpay-h5-pay-v2-6554876594-tvjnl",
+            "prod-ebpay-h5-pay-v2-6554876594-fqwb8",
+            "prod-ebpay-h5-pay-v2-6554876594-x9m4s"
+          ],
+          "prod-ebpay-pc-pay": [
+            "prod-ebpay-pc-pay-5b66755f6d-6bsv5",
+            "prod-ebpay-pc-pay-5b66755f6d-2vhsq"
+          ],
+          "prod-ebpay-sentinel": [
+            "prod-ebpay-sentinel-7fc874f7d6-lr22m"
+          ],
+          "prod-ebpay-www-h5": [
+            "prod-ebpay-www-h5-68f5bc887b-9s4k5",
+            "prod-ebpay-www-h5-68f5bc887b-zdvd9",
+            "prod-ebpay-www-h5-68f5bc887b-ddq7k",
+            "prod-ebpay-www-h5-68f5bc887b-tgxg7"
+          ],
+          "prod-ebpay-www-pc": [
+            "prod-ebpay-www-pc-6f7bfdd85c-shkqx",
+            "prod-ebpay-www-pc-6f7bfdd85c-jwxht",
+            "prod-ebpay-www-pc-6f7bfdd85c-pc2v8",
+            "prod-ebpay-www-pc-6f7bfdd85c-c25p2"
+          ],
+          "prod-exchange-rate-service": [
+            "prod-exchange-rate-service-6694db94bb-xknz4",
+            "prod-exchange-rate-service-6694db94bb-xt5r9",
+            "prod-exchange-rate-service-6694db94bb-lr5s7",
+            "prod-exchange-rate-service-6694db94bb-s6kgb"
+          ],
+          "prod-exchange-service": [
+            "prod-exchange-service-6666f7df4-qvs74",
+            "prod-exchange-service-6666f7df4-9j2hd",
+            "prod-exchange-service-6666f7df4-wmhbl",
+            "prod-exchange-service-6666f7df4-pwzpd"
+          ],
+          "prod-external-resources-service": [
+            "prod-external-resources-service-c5dfdc7-xjh8d",
+            "prod-external-resources-service-c5dfdc7-r25bl",
+            "prod-external-resources-service-c5dfdc7-k8tdj",
+            "prod-external-resources-service-c5dfdc7-75fzn"
+          ],
+          "prod-frontend-toolbox": [
+            "prod-frontend-toolbox-68f6d48ccc-n28m4",
+            "prod-frontend-toolbox-68f6d48ccc-d2d2n"
+          ],
+          "prod-go-chain-service": null,
+          "prod-merchant-service": [
+            "prod-merchant-service-5445977bb8-jjtdg",
+            "prod-merchant-service-5445977bb8-58m79",
+            "prod-merchant-service-5445977bb8-s9qb2",
+            "prod-merchant-service-5445977bb8-scss5",
+            "prod-merchant-service-5445977bb8-z5x97",
+            "prod-merchant-service-5445977bb8-4xwt7",
+            "prod-merchant-service-5445977bb8-9tglg",
+            "prod-merchant-service-5445977bb8-jrf4q"
+          ],
+          "prod-new-ebpay-www-h5": [
+            "prod-new-ebpay-www-h5-688f58b48b-mf9fp",
+            "prod-new-ebpay-www-h5-688f58b48b-g5sgr",
+            "prod-new-ebpay-www-h5-688f58b48b-hlpkt",
+            "prod-new-ebpay-www-h5-688f58b48b-zw652"
+          ],
+          "prod-new-ebpay-www-pc": [
+            "prod-new-ebpay-www-pc-66fd6f6d55-4fbjm",
+            "prod-new-ebpay-www-pc-66fd6f6d55-h8qx9",
+            "prod-new-ebpay-www-pc-66fd6f6d55-hsfjv",
+            "prod-new-ebpay-www-pc-66fd6f6d55-j4zxd"
+          ],
+          "prod-otc-server": null,
+          "prod-otc-service": null,
+          "prod-otc-service-new": [
+            "prod-otc-service-new-6896885698-mc4sh",
+            "prod-otc-service-new-6896885698-nntk8",
+            "prod-otc-service-new-6896885698-zg6gs",
+            "prod-otc-service-new-6896885698-njfng",
+            "prod-otc-service-new-6896885698-zfb5x",
+            "prod-otc-service-new-6896885698-mrsq5",
+            "prod-otc-service-new-6896885698-tpxf2",
+            "prod-otc-service-new-6896885698-m5dvm",
+            "prod-otc-service-new-6896885698-829zs",
+            "prod-otc-service-new-6896885698-ccz2p",
+            "prod-otc-service-new-6896885698-5v6pq",
+            "prod-otc-service-new-6896885698-79f5h"
+          ],
+          "prod-pay-service": [
+            "prod-pay-service-5df4b5df45-h76cx",
+            "prod-pay-service-5df4b5df45-hhrfs",
+            "prod-pay-service-5df4b5df45-rz8nq",
+            "prod-pay-service-5df4b5df45-vbqnv",
+            "prod-pay-service-5df4b5df45-229w6",
+            "prod-pay-service-5df4b5df45-5t926",
+            "prod-pay-service-5df4b5df45-t69j2",
+            "prod-pay-service-5df4b5df45-sk89t"
+          ],
+          "prod-payment-channel-service": null,
+          "prod-risk-manager": [
+            "prod-risk-manager-74fbb6c85c-95bzn",
+            "prod-risk-manager-74fbb6c85c-4cqg5",
+            "prod-risk-manager-74fbb6c85c-hrd59",
+            "prod-risk-manager-74fbb6c85c-xwgjk"
+          ],
+          "prod-security-hehavior-manager": [
+            "prod-security-hehavior-manager-695d86bc46-jrnt5",
+            "prod-security-hehavior-manager-695d86bc46-qmmlm",
+            "prod-security-hehavior-manager-695d86bc46-476jw",
+            "prod-security-hehavior-manager-695d86bc46-nfsxg"
+          ],
+          "prod-site-tools": [
+            "prod-site-tools-7f5496cc49-tdmtv",
+            "prod-site-tools-7f5496cc49-xr9mn"
+          ],
+          "prod-sms-callback": [
+            "prod-sms-callback-6b6cc76f54-zrmbn",
+            "prod-sms-callback-6b6cc76f54-9hb4x"
+          ],
+          "prod-spring-boot-admin": [
+            "prod-spring-boot-admin-64b8b6964b-rbqjc",
+            "prod-spring-boot-admin-64b8b6964b-x5p6n"
+          ],
+          "prod-user-server": [
+            "prod-user-server-dfd584d49-spw2g",
+            "prod-user-server-dfd584d49-zpdlg",
+            "prod-user-server-dfd584d49-lrvvh",
+            "prod-user-server-dfd584d49-k5dtg",
+            "prod-user-server-dfd584d49-bsw8d",
+            "prod-user-server-dfd584d49-fr42d",
+            "prod-user-server-dfd584d49-6df2v",
+            "prod-user-server-dfd584d49-skm8b"
+          ],
+          "prod-user-service": [
+            "prod-user-service-7cf9455d6b-h9gbp",
+            "prod-user-service-7cf9455d6b-wz4ds",
+            "prod-user-service-7cf9455d6b-sm6dm",
+            "prod-user-service-7cf9455d6b-cjgsr",
+            "prod-user-service-7cf9455d6b-m2f42",
+            "prod-user-service-7cf9455d6b-cgk5g",
+            "prod-user-service-7cf9455d6b-r4s7z",
+            "prod-user-service-7cf9455d6b-cx6r4",
+            "prod-user-service-7cf9455d6b-4cl8n",
+            "prod-user-service-7cf9455d6b-9nhhk",
+            "prod-user-service-7cf9455d6b-xz4sj",
+            "prod-user-service-7cf9455d6b-l7p94",
+            "prod-user-service-7cf9455d6b-hx6fs",
+            "prod-user-service-7cf9455d6b-qg6zc",
+            "prod-user-service-7cf9455d6b-q986t",
+            "prod-user-service-7cf9455d6b-7cnbf",
+            "prod-user-service-7cf9455d6b-j87bd",
+            "prod-user-service-7cf9455d6b-v9ppq",
+            "prod-user-service-7cf9455d6b-rvg7b",
+            "prod-user-service-7cf9455d6b-4bdr8",
+            "prod-user-service-7cf9455d6b-82r2b",
+            "prod-user-service-7cf9455d6b-btgvw",
+            "prod-user-service-7cf9455d6b-6phtf",
+            "prod-user-service-7cf9455d6b-8m7tf"
+          ],
+          "prod-wallet-api": [
+            "prod-wallet-api-7497c794c5-fs4rj",
+            "prod-wallet-api-7497c794c5-rvzkz",
+            "prod-wallet-api-7497c794c5-bf8mg",
+            "prod-wallet-api-7497c794c5-vpqb2",
+            "prod-wallet-api-7497c794c5-6znnf",
+            "prod-wallet-api-7497c794c5-9847x",
+            "prod-wallet-api-7497c794c5-5pjqp",
+            "prod-wallet-api-7497c794c5-gm4ds"
+          ],
+          "prod-wallet-server": [
+            "prod-wallet-server-5bf6f9f8db-cnnnd",
+            "prod-wallet-server-5bf6f9f8db-r79hs"
+          ],
+          "prod-websocket-service": [
+            "prod-websocket-service-8454b7c4cc-4bng8",
+            "prod-websocket-service-8454b7c4cc-jwckl"
+          ]
+        }
+      },
+      "koipay": {
+        "deployments": {
+          "koipay-help": null,
+          "prod-koipay-business": [
+            "prod-koipay-business-5875c89f99-6t9t4",
+            "prod-koipay-business-5875c89f99-xq4d2"
+          ],
+          "prod-koipay-business-admin": [
+            "prod-koipay-business-admin-649d48f7c4-kpfdd",
+            "prod-koipay-business-admin-649d48f7c4-4f649"
+          ],
+          "prod-koipay-business-web": [
+            "prod-koipay-business-web-5dc65cbf8-kpm47",
+            "prod-koipay-business-web-5dc65cbf8-trnts"
+          ],
+          "prod-koipay-www-h5": [
+            "prod-koipay-www-h5-f86b69d54-6wxnc",
+            "prod-koipay-www-h5-f86b69d54-p8skv"
+          ],
+          "prod-koipay-www-pc": [
+            "prod-koipay-www-pc-bdf8896fb-qwkb2",
+            "prod-koipay-www-pc-bdf8896fb-mh87m"
+          ]
+        }
+      }
+    }
+  }

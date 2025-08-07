@@ -22,3 +22,5 @@ node_modules/
 
 # Git提交消息文件
 git_commit_msg.txt
+
+snapshot_enhancement_plan.md

@@ -239,7 +239,7 @@ func (sm *ShardingManager) shardByIndex(ctx context.Context, tasks []podTask, re
 			zap.Int("当前副本序号", ordinal),
 			zap.Int("分配到的任务数", len(result)),
 			zap.String("命名空间示例", result[0].namespace),
-			zap.String("Pod示例", result[0].pod.Name),
+			zap.String("Pod示例", result[0].podName),
 		)
 	} else {
 		utils.Log.Info(ctx, "索引分片完成，但未分配到任何任务",
@@ -281,7 +281,7 @@ func (sm *ShardingManager) shardByDeployment(ctx context.Context, tasks []podTas
 		utils.Log.Trace(ctx, "任务分配决策",
 			zap.String("namespace", task.namespace),
 			zap.String("deployment", task.deploymentName),
-			zap.String("pod", task.pod.Name),
+			zap.String("pod", task.podName),
 			zap.Int("hash", hashValue),
 			zap.Int("replicas", replicas),
 			zap.Int("ordinal", ordinal),
