@@ -43,9 +43,9 @@ func RunLeaderElection(
 	lec := leaderelection.LeaderElectionConfig{
 		Lock:            lock,
 		ReleaseOnCancel: true,
-		LeaseDuration:   45 * time.Second, // 延长租约时间
-		RenewDeadline:   20 * time.Second, // 延长续约时间
-		RetryPeriod:     3 * time.Second,  // 平衡重试频率
+		LeaseDuration:   60 * time.Second, // 延长租约时间
+		RenewDeadline:   30 * time.Second, // 延长续约时间
+		RetryPeriod:     5 * time.Second,  // 平衡重试频率
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// 原子标记为领导者

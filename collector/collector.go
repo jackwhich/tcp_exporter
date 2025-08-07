@@ -28,6 +28,7 @@ import (
 	"tcp-exporter/snapshot"
 	"tcp-exporter/utils"
 	"tcp-exporter/cmd"
+	"github.com/panjf2000/ants/v2"
 )
 
 // getOrdinalFromPodName 从Pod名称提取序号
@@ -344,17 +345,6 @@ func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t pod
 		zap.String("container", t.containerName))
 }
 
-func (collector *TCPQueueCollector) collectTasks(ctx context.Context, tasks []podTask, metricChan chan<- prometheus.Metric, cm *ConcurrencyManager) {
-	var wg sync.WaitGroup
-	for _, t := range tasks {
-		wg.Add(1)
-		go func(t podTask) {
-			defer wg.Done()
-			collector.collectSingleTask(ctx, t, metricChan, cm)
-		}(t)
-	}
-	wg.Wait()
-}
 
 func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric) {
 	// 为整个收集任务创建trace ID（使用自定义key类型）
@@ -414,30 +404,49 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 		}
 	}
 	cm := NewConcurrencyManager(totalPods, collector.maxConcurrent, collector.maxPodContainer)
-	sm := &ShardingManager{Mode: ShardByDeployment}
+	// 创建一致性哈希分片器
+	nodes := make([]int, replicas)
+	for i := 0; i < replicas; i++ {
+		nodes[i] = i
+	}
+	sharder := NewConsistentHashSharder(100, nodes) // 100个虚拟节点
 
+	// 构建当前Pod需要处理的任务列表
+	var shardedTasks []podTask
 	tasks := collector.buildTasks(taskCtx, snap)
-	totalTasks := len(tasks)
-	
-	// 计算分片范围
-	start, end := sm.GetShardRange(totalTasks, replicas, ordinal)
-	if end > totalTasks {
-		end = totalTasks
+	for _, task := range tasks {
+		// 使用命名空间、部署名和Pod名作为分片键
+		key := task.namespace + "/" + task.deploymentName + "/" + task.pod.Name
+		if sharder.GetShard(key) == ordinal {
+			shardedTasks = append(shardedTasks, task)
+		}
 	}
-	if start > totalTasks {
-		start = totalTasks
-	}
-	shardedTasks := tasks[start:end]
 	
-	utils.Log.Info(taskCtx, "任务分片范围",
-		zap.Int("start", start),
-		zap.Int("end", end),
+	utils.Log.Info(taskCtx, "一致性哈希分片结果",
 		zap.Int("分片任务数", len(shardedTasks)),
-		zap.Int("总任务数", totalTasks),
+		zap.Int("总任务数", len(tasks)),
 		zap.Int("副本数", replicas),
 		zap.Int("当前副本序号", ordinal))
 	
-	collector.collectTasks(taskCtx, shardedTasks, metricChan, cm)
+	// 使用ants协程池处理任务
+	pool, _ := ants.NewPool(collector.maxConcurrent, ants.WithPreAlloc(true))
+	defer pool.Release()
+	
+	// 使用等待组同步任务
+	var wg sync.WaitGroup
+	wg.Add(len(shardedTasks))
+	
+	// 提交所有分片任务
+	for _, task := range shardedTasks {
+		task := task
+		pool.Submit(func() {
+			defer wg.Done()
+			collector.collectSingleTask(taskCtx, task, metricChan, cm)
+		})
+	}
+	
+	// 等待所有任务完成
+	wg.Wait()
 }
 
 func RegisterCollector(clientset *kubernetes.Clientset, restConfig *rest.Config, cfg *config.Config, factory informers.SharedInformerFactory) *TCPQueueCollector {

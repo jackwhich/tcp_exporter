@@ -45,18 +45,23 @@ func NewSnapshotManager(deploymentLister appslisters.DeploymentLister, podLister
         }
 }
 
-// LoadSnapshot 从文件加载快照
+// LoadSnapshot 使用高效方式加载快照
 func LoadSnapshot(ctx context.Context, path string) (*Snapshot, error) {
-	data, err := os.ReadFile(path)
+	utils.Log.Debug(ctx, "高效加载快照", zap.String("path", path))
+
+	// 使用os.Open代替os.ReadFile减少内存分配
+	file, err := os.Open(path)
 	if err != nil {
-		utils.Log.Error(ctx, "加载快照文件失败",
+		utils.Log.Error(ctx, "打开快照文件失败",
 			zap.String("path", path),
 			zap.Error(err))
 		return nil, err
 	}
+	defer file.Close()
 
+	// 使用json.Decoder流式解析减少内存占用
 	var snap Snapshot
-	if err := json.Unmarshal(data, &snap); err != nil {
+	if err := json.NewDecoder(file).Decode(&snap); err != nil {
 		utils.Log.Error(ctx, "解析快照文件失败",
 			zap.String("path", path),
 			zap.Error(err))
