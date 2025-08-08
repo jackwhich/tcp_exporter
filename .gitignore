@@ -22,7 +22,7 @@ node_modules/
 
 # Git提交消息文件
 git_commit_msg.txt
-
+doc/
 snapshot_enhancement_plan.md
 memory-optimization-plan.md
 consistent-hash-fix-plan.md

@@ -78,7 +78,6 @@ type TCPQueueCollector struct {
         ignoreSet            map[string]struct{}
         deploymentLister     appslisters.DeploymentLister
         podLister            corelisters.PodLister
-        tasks                []podTask
         descSyncSent         *prometheus.Desc
         descListenOverflows  *prometheus.Desc
         descListenDrops      *prometheus.Desc
@@ -155,8 +154,20 @@ func (collector *TCPQueueCollector) Describe(descChan chan<- *prometheus.Desc) {
         descChan <- collector.descCurrentEstablished
 }
 
-func (collector *TCPQueueCollector) buildTasks(ctx context.Context, snap *snapshot.Snapshot) <-chan podTask {
-	taskChan := make(chan podTask)
+var taskPool = sync.Pool{
+	New: func() interface{} {
+		return &podTask{}
+	},
+}
+
+func putTask(task *podTask) {
+	// 重置字段
+	*task = podTask{}
+	taskPool.Put(task)
+}
+
+func (collector *TCPQueueCollector) buildTasks(ctx context.Context, snap *snapshot.Snapshot) <-chan *podTask {
+	taskChan := make(chan *podTask)
 	go func() {
 		defer close(taskChan)
 		for nsName, nsData := range snap.Namespaces {
@@ -169,13 +180,13 @@ func (collector *TCPQueueCollector) buildTasks(ctx context.Context, snap *snapsh
 				for _, podInfo := range podInfos {
 					for _, container := range podInfo.Containers {
 						if container.State == "running" {
-							taskChan <- podTask{
-								deploymentName: depName,
-								namespace:     nsName,
-								podName:       podInfo.PodName,
-								containerName: container.Name,
-								podIP:         podInfo.IP,
-							}
+							task := taskPool.Get().(*podTask)
+							task.deploymentName = depName
+							task.namespace = nsName
+							task.podName = podInfo.PodName
+							task.containerName = container.Name
+							task.podIP = podInfo.IP
+							taskChan <- task
 						}
 					}
 				}
@@ -185,7 +196,8 @@ func (collector *TCPQueueCollector) buildTasks(ctx context.Context, snap *snapsh
 	return taskChan
 }
 
-func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t podTask, metricChan chan<- prometheus.Metric, cm *ConcurrencyManager) {
+func (collector *TCPQueueCollector) collectSingleTask(ctx context.Context, t *podTask, metricChan chan<- prometheus.Metric, cm *ConcurrencyManager) {
+	defer putTask(t)
 	utils.Log.Debug(ctx, "开始处理任务",
 		zap.String("namespace", t.namespace),
 		zap.String("pod", t.podName),
@@ -347,7 +359,32 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 	// 获取任务通道
 	taskChan := collector.buildTasks(taskCtx, snap)
 	
-	// 使用原生goroutine处理任务
+	// 创建Worker Pool (完全动态调整)
+	workerCount := collector.maxConcurrent
+	if workerCount < 1 {
+		// 计算总Pod数
+		totalPods := 0
+		for _, nsData := range snap.Namespaces {
+			for _, pods := range nsData.Deployments {
+				totalPods += len(pods)
+			}
+		}
+		
+		// 动态计算worker数量 (每20个Pod分配1个worker，上限200)
+		workerCount = totalPods / 20
+		if workerCount < 10 {
+			workerCount = 10 // 最小10个worker
+		} else if workerCount > 200 {
+			workerCount = 200 // 最大200个worker
+		}
+	}
+	workerPool := make(chan struct{}, workerCount)
+	utils.Log.Info(taskCtx, "初始化动态Worker Pool",
+		zap.Int("worker_count", workerCount),
+		zap.Int("total_pods", totalPods),
+		zap.Int("ratio", totalPods/workerCount))
+	
+	// 使用Worker Pool处理任务
 	var wg sync.WaitGroup
 	for task := range taskChan {
 		// Kubernetes模式分片检查
@@ -364,14 +401,21 @@ func (collector *TCPQueueCollector) Collect(metricChan chan<- prometheus.Metric)
 			}
 		}
 		
+		// 获取worker
+		workerPool <- struct{}{}
 		wg.Add(1)
-		go func(t podTask) {
-			defer wg.Done()
+		
+		go func(t *podTask) {
+			defer func() {
+				<-workerPool
+				wg.Done()
+			}()
 			collector.collectSingleTask(taskCtx, t, metricChan, cm)
 		}(task)
 	}
 	
 	wg.Wait()
+	close(workerPool)
 }
 
 func RegisterCollector(clientset *kubernetes.Clientset, restConfig *rest.Config, cfg *config.Config, factory informers.SharedInformerFactory) *TCPQueueCollector {
